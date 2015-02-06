@@ -1,0 +1,12 @@
+
+func_call_test : () -> void {
+   print("Never gonna give you up! Never gonna let you down!\n");
+}
+
+main : () -> void {
+   print("Hello World!\n");
+   print("Hello World!\n");
+   func_call_test();
+   print("Hello World!\n");
+   print("First working implementation!\n");
+}
