@@ -1,12 +1,131 @@
 
-func_call_test : () -> void {
-   print("Never gonna give you up! Never gonna let you down!\n");
+
+
+waitForVSync : () -> void {
+   __asm__("ldx #0");
+   __asm__("waitForVSync_loop:");
+   __asm__("inx");
+   __asm__("txa");
+   __asm__("stx $09");
+   wsync : *void;
+   wsync = 2;
+   *wsync = 1;
+   __asm__("cmp #192");
+   __asm__("bne waitForVSync_loop");
+}
+
+endOfFrame : () -> void {
+   __asm__("lda #%01000010");
+   __asm__("sta $01");
+   
+   
+   wsync : *void;
+   wsync = 2;
+   *wsync = 1;
+   *wsync = 1;
+   *wsync = 1;
+   *wsync = 1;
+   *wsync = 1;
+   *wsync = 1;
+   *wsync = 1;
+   *wsync = 1;
+   *wsync = 1;
+   *wsync = 1;
+   *wsync = 1;
+   *wsync = 1;
+   *wsync = 1;
+   *wsync = 1;
+   *wsync = 1;
+   *wsync = 1;
+   *wsync = 1;
+   *wsync = 1;
+   *wsync = 1;
+   *wsync = 1;
+   *wsync = 1;
+   *wsync = 1;
+   *wsync = 1;
+   *wsync = 1;
+   *wsync = 1;
+   *wsync = 1;
+   *wsync = 1;
+   *wsync = 1;
+   *wsync = 1;
+   *wsync = 1;
+   *wsync = 1;
+   *wsync = 1;
+   *wsync = 1;
+   *wsync = 1;
+   *wsync = 1;
+   *wsync = 1;
+   *wsync = 1;
+   
+   
 }
 
 main : () -> void {
-   print("Hello World!\n");
-   print("Hello World!\n");
-   func_call_test();
-   print("Hello World!\n");
-   print("First working implementation!\n");
+   
+      vsync : () -> void {
+      __asm__("lda #0");
+      __asm__("sta $01");
+      
+      __asm__("lda #2");
+      __asm__("sta $00");
+      
+      __asm__("sta $02");
+      __asm__("sta $02");
+      __asm__("sta $02");
+      
+      __asm__("lda #0");
+      __asm__("sta $00");
+      
+      __asm__("sta $02");
+      __asm__("sta $02");
+      __asm__("sta $02");
+      __asm__("sta $02");
+      __asm__("sta $02");
+      __asm__("sta $02");
+      __asm__("sta $02");
+      __asm__("sta $02");
+      __asm__("sta $02");
+      __asm__("sta $02");
+      __asm__("sta $02");
+      __asm__("sta $02");
+      __asm__("sta $02");
+      __asm__("sta $02");
+      __asm__("sta $02");
+      __asm__("sta $02");
+      __asm__("sta $02");
+      __asm__("sta $02");
+      __asm__("sta $02");
+      __asm__("sta $02");
+      __asm__("sta $02");
+      __asm__("sta $02");
+      __asm__("sta $02");
+      __asm__("sta $02");
+      __asm__("sta $02");
+      __asm__("sta $02");
+      __asm__("sta $02");
+      __asm__("sta $02");
+      __asm__("sta $02");
+      __asm__("sta $02");
+      __asm__("sta $02");
+      __asm__("sta $02");
+      __asm__("sta $02");
+      __asm__("sta $02");
+      __asm__("sta $02");
+      __asm__("sta $02");
+      __asm__("sta $02");
+      
+   }
+
+   __asm__("SEI");
+	__asm__("CLD");
+	__asm__("LDX #$FF");
+	__asm__("txs");
+   __asm__("lda #$61");
+   __asm__("sta $09");
+   vsync();
+   waitForVSync();
+   
+   __asm__("jmp main");
 }
