@@ -5,11 +5,11 @@ waitForVSync : () -> void {
    __asm__("ldx #0");
    __asm__("waitForVSync_loop:");
    __asm__("inx");
-   __asm__("txa");
    __asm__("stx $09");
    wsync : *void;
    wsync = 2;
    *wsync = 1;
+   __asm__("txa");
    __asm__("cmp #192");
    __asm__("bne waitForVSync_loop");
 }
@@ -19,11 +19,11 @@ endOfFrame : () -> void {
    __asm__("sta $01");
    
    
-   wsync : *void;
-   wsync = 2;
+   wsync : const *void = 2;
    *wsync = 1;
    *wsync = 1;
    *wsync = 1;
+
    *wsync = 1;
    *wsync = 1;
    *wsync = 1;
@@ -126,6 +126,6 @@ main : () -> void {
    __asm__("sta $09");
    vsync();
    waitForVSync();
-   
+   endOfFrame();
    __asm__("jmp main");
 }

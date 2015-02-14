@@ -68,6 +68,8 @@ struct Variable {
    VType type;
    VType ptype; //used when type is a pointer
    intptr_t pvalue;
+   bool is_type_const = false;
+   bool is_ptype_const = false;
 };
 
 struct Scope;
@@ -95,6 +97,9 @@ struct Instruction {
 
 struct Expression {
    std::vector<Instruction> instructions;
+   Scope *scope;
+   
+   Expression();
 };
 
 struct Scope {
@@ -149,7 +154,12 @@ struct Scope {
 
 Function::
 Function() {
-      scope = new Scope();
+   scope = new Scope();
+}
+
+Expression::
+Expression() {
+   scope = new Scope();
 }
 
 static void parse_scope(std::string name, Scope &parent, stb_lexer &lex, long delim_token);
@@ -157,6 +167,54 @@ static void parse_declaration(std::string name, Scope &scope, stb_lexer &lex);
 static void parse_function(std::string name, Scope &scope, stb_lexer &lex);
 static Variable parse_variable(std::string name, Scope &scope, stb_lexer &lex);
 static void parse_expression(std::string name, Scope &scope, stb_lexer &lex, bool deref);
+static Variable parse_rvalue(Scope &scope, stb_lexer &lex);
+static void compiler_error(std::string msg, stb_lexer &lex);
+static void compiler_warning(std::string msg, stb_lexer &lex);
+
+
+std::string token_to_string(stb_lexer &lex) {
+   switch (lex.token) {
+      case CLEX_id        : return std::string(lex.string, strlen(lex.string));
+      case CLEX_eq        : return "==";
+      case CLEX_noteq     : return "!=";
+      case CLEX_lesseq    : return "<=";
+      case CLEX_greatereq : return ">=";
+      case CLEX_andand    : return "&&";
+      case CLEX_oror      : return "||";
+      case CLEX_shl       : return "<<";
+      case CLEX_shr       : return ">>";
+      case CLEX_plusplus  : return "++";
+      case CLEX_minusminus: return "--";
+      case CLEX_arrow     : return "->";
+      case CLEX_andeq     : return "&=";
+      case CLEX_oreq      : return "|=";
+      case CLEX_xoreq     : return "^=";
+      case CLEX_pluseq    : return "+=";
+      case CLEX_minuseq   : return "-=";
+      case CLEX_muleq     : return "*=";
+      case CLEX_diveq     : return "/=";
+      case CLEX_modeq     : return "%%=";
+      case CLEX_shleq     : return "<<=";
+      case CLEX_shreq     : return ">>=";
+         //case CLEX_eqarrow   : printf("=>"); break;
+      case CLEX_dqstring  : return std::string(lex.string, strlen(lex.string));
+         //case CLEX_sqstring  : printf("'\"%s\"'", lexer->string); break;
+      case CLEX_charlit   : return "'" + std::string(lex.string, strlen(lex.string)) + "'";
+#if defined(STB__clex_int_as_double) && !defined(STB__CLEX_use_stdlib)
+      //case CLEX_intlit    : printf("#%g", lexer->real_number); break;
+#else
+     // case CLEX_intlit    : printf("#%ld", lexer->int_number); break;
+#endif
+     // case CLEX_floatlit  : printf("%g", lexer->real_number); break;
+      default:
+         if (lex.token >= 0 && lex.token < 256)
+            return std::string() + (char)lex.token;
+         else {
+            //printf("<<<UNKNOWN TOKEN %ld >>>\n", lexer->token);
+         }
+         break;
+   }
+}
 
 static void parse_scope(std::string name, Scope &scope, stb_lexer &lex, long delim_token = 0) {
 
@@ -174,7 +232,7 @@ static void parse_scope(std::string name, Scope &scope, stb_lexer &lex, long del
             stb_c_lexer_get_token(&lex);
             if(lex.token == ':') {
                if (deref) {
-                  printf("Error: attempt to dereference variable in declaration.\n");
+                  compiler_error("attempt to dereference variable in declaration.", lex);
                } else {
                   parse_declaration(name, scope, lex);
                }
@@ -182,7 +240,7 @@ static void parse_scope(std::string name, Scope &scope, stb_lexer &lex, long del
          } else {
             stb_c_lexer_get_token(&lex);
             if(lex.token == ':') {
-               printf("Error: identifier already declared\n");
+               compiler_error("identifier already declared.", lex);
             } else {
                //printf("parsing expression\n");
                parse_expression(name, scope, lex, deref);
@@ -207,20 +265,42 @@ static Variable parse_variable(std::string name, Scope &scope, stb_lexer &lex) {
    Variable var;
    var.name = name;
    bool is_pointer = false;
+   bool push = true;
    while (lex.token != ';') {
       if (lex.token == '*') {
          is_pointer = true;
          var.type = Variable::POINTER;
       } else if (lex.token == CLEX_id) {
          std::string vtype = std::string(lex.string, strlen(lex.string));
-         if (is_pointer) {
+         if (vtype.compare("const") == 0) {
+            if (is_pointer) {
+               var.is_ptype_const = true;
+            } else {
+               var.is_type_const = true;
+            }
+         } else if (is_pointer) {
             var.ptype = get_vtype(vtype);
          } else {
             var.type = get_vtype(vtype);
          }
+      } else if (lex.token == '=') {
+         if (var.is_type_const) {
+            var.pvalue = parse_rvalue(scope, lex).pvalue;
+            break;
+         } else {
+            scope.variables.push_back(var);
+            push = false;
+            
+            parse_expression(name, scope, lex, false);
+            break;
+         }
       }
       
       stb_c_lexer_get_token(&lex);
+   }
+   
+   if (push) {
+      scope.variables.push_back(var);
    }
    
    return var;
@@ -244,8 +324,8 @@ static void parse_declaration(std::string name, Scope &scope, stb_lexer &lex) {
    if(lex.token == '(') {
       parse_function(name, scope, lex);
    } else {
-      printf("Parse var: %s\n", name.c_str());
-      scope.variables.push_back(parse_variable(name, scope, lex));
+      //printf("Parse var: %s\n", name.c_str());
+      parse_variable(name, scope, lex);
    }
 }
 
@@ -272,7 +352,7 @@ static void parse_function(std::string name, Scope &scope, stb_lexer &lex) {
    stb_c_lexer_get_token(&lex);
    Function func;
    func.name = name;
-   printf("Parsing function: %s\n", name.c_str());
+   //printf("Parsing function: %s\n", name.c_str());
    func.scope->parent = &scope;
    if (lex.token != ')') {
       func.parameters = parse_parameter_list(*func.scope, lex);
@@ -280,15 +360,15 @@ static void parse_function(std::string name, Scope &scope, stb_lexer &lex) {
    
    stb_c_lexer_get_token(&lex);
    if (lex.token != CLEX_arrow) {
-      printf("Error: expected ->\n");
+      compiler_error(std::string("expected token '->' before token '") + token_to_string(lex) + "'", lex);
    }
    stb_c_lexer_get_token(&lex);
    if (lex.token != CLEX_id) {
-      printf("Error: unexpected token\n");
+      compiler_error(std::string("unexpected token '") + token_to_string(lex) + "'", lex);
    }
    stb_c_lexer_get_token(&lex);
    if (lex.token != '{') {
-      printf("Error: unexpected token\n");
+      compiler_error(std::string("unexpected token '") + token_to_string(lex)+ "'", lex);
    }
    
    parse_scope(name, *func.scope, lex, '}');
@@ -302,8 +382,8 @@ static void parse_expression(std::string name, Scope &scope, stb_lexer &lex, boo
    Expression expr;
    Instruction instr;
    
-   print_token(&lex);
-   printf("\n");
+//   print_token(&lex);
+//   printf("\n");
    
    if (lex.token == '(') {
       //printf("parsing function call\n");
@@ -313,7 +393,7 @@ static void parse_expression(std::string name, Scope &scope, stb_lexer &lex, boo
       
       stb_c_lexer_get_token(&lex);
       if (lex.token != ';') {
-         printf("Error: unexpected token");
+         compiler_error(std::string("expected token ';' before token '") + token_to_string(lex) + "'", lex);
       }
       expr.instructions.push_back(instr);
    }
@@ -321,19 +401,22 @@ static void parse_expression(std::string name, Scope &scope, stb_lexer &lex, boo
       scope.variables.push_back(parse_variable(name, scope, lex));
    }*/
    else if (lex.token == '=') {
-      printf("parsing assignment\n");
+      //printf("parsing assignment\n");
       instr.type = Instruction::ASSIGN;
       Variable *var = scope.getVarByName(name);
       if (var) {
+         if (var->is_type_const && !deref) {
+            compiler_error("read-only variable is not assignable", lex);
+         }
          instr.lvalue_data = *var;
       } else {
-         printf("Error: undefined reference to %s\n", name.c_str());
+         compiler_error("Error: undefined reference to " + name, lex);
       }
       instr.lvalue_data.type = (deref ? Variable::DEREFERENCED_POINTER : Variable::POINTER);
       instr.rvalue_data = parse_rvalue(scope, lex);
       //stb_c_lexer_get_token(&lex);
       if (lex.token != ';') {
-         printf("Error: unexpected token");
+         compiler_error(std::string("expected token ';' before token '") + token_to_string(lex) + "'", lex);
       }
       expr.instructions.push_back(instr);
    }
@@ -381,12 +464,35 @@ static std::string load_file(const std::string pathname) {
 }
 
 #include <iostream>
+#include <unordered_map>
 
-static void generate_6502_scope(Scope &scope, std::ostream &os) {
+struct Gen_6502 {
+
+   std::unordered_map<std::string, unsigned int> variable_ram_map;
+   unsigned int ramp = 0;
+   const unsigned int RAM_START_ADDR = 0x180;
+   
+   unsigned int get_var_loc (std::string name) {
+      if (!variable_ram_map.count(name)) {
+         variable_ram_map[name] = ramp;
+         ++ramp;
+      }
+      
+      return (variable_ram_map[name] + RAM_START_ADDR);
+   }
+   
+   void gen_scope(Scope &scope, std::ostream &os);
+};
+
+void Gen_6502::
+gen_scope(Scope &scope, std::ostream &os) {
    for (auto &func : scope.functions) {
-      generate_6502_scope(*func.scope, os);
+      gen_scope(*func.scope, os);
+      variable_ram_map.clear();
       if (func.name.compare("__asm__") == 0) continue;
       os << func.name << ":" << std::endl;
+      
+      Instruction prevInstr;
       for (auto &expr : func.scope->expressions) {
          for (auto &instr : expr.instructions) {
             switch (instr.type) {
@@ -406,28 +512,42 @@ static void generate_6502_scope(Scope &scope, std::ostream &os) {
                   }
                } break;
                case Instruction::ASSIGN: {
-                  printf("Assignment\n");
                   if (instr.lvalue_data.type == Variable::POINTER) {
                      os << '\t' << "ldy #" << instr.rvalue_data.pvalue << std::endl;
+                     os << '\t' << "sty " << get_var_loc(instr.lvalue_data.name) << std::endl;
                   } else if (instr.lvalue_data.type == Variable::DEREFERENCED_POINTER) {
-                     os << '\t' << "pha" << std::endl;
-                     os << '\t' << "lda #" << instr.rvalue_data.pvalue << std::endl;
-                     os << '\t' << "sta 0,y" << std::endl;
-                     os << '\t' << "pla" << std::endl;
+                     if (!(prevInstr.type == Instruction::ASSIGN
+                           && prevInstr.lvalue_data.type == Variable::DEREFERENCED_POINTER
+                           && prevInstr.lvalue_data.name.compare(instr.lvalue_data.name) == 0
+                           && prevInstr.rvalue_data.pvalue == instr.rvalue_data.pvalue)) {
+                        if (!instr.lvalue_data.is_type_const) {
+                           os << '\t' << "ldy " << get_var_loc(instr.lvalue_data.name) << std::endl;
+                        }
+                        os << '\t' << "lda #" << instr.rvalue_data.pvalue << std::endl;
+                     }
+                     if (instr.lvalue_data.is_type_const) {
+                        os << '\t' << "sta " << instr.lvalue_data.pvalue << std::endl;
+                     } else {
+                        os << '\t' << "sta 0,y" << std::endl;
+                     }
                   }
                } break;
             }
+            
+            prevInstr = instr;
          }
       }
       os << '\t' << "rts" << std::endl;
    }
 }
 
+
 static void generate_6502(Scope &scope, std::ostream &os) {
    os << '\t' << "processor 6502" << std::endl;
    os << '\t' << "SEG" << std::endl;
    os << '\t' << "ORG $F000" << std::endl;
-   generate_6502_scope(scope, os);
+   Gen_6502 g6502;
+   g6502.gen_scope(scope, os);
    os << '\t' << "ORG $FFFA" << std::endl;
    os << '\t' << ".word main" << std::endl;
    os << '\t' << ".word main" << std::endl;
@@ -437,12 +557,69 @@ static void generate_6502(Scope &scope, std::ostream &os) {
 
 #include <fstream>
 
+#include <string>
+#include <iostream>
+#include <stdio.h>
+#include <sstream>
+
+static int error_count = 0;
+static std::string csource;
+
+static void print_line_with_arrow(int line_number, int offset) {
+   std::string line;
+   std::stringstream ss(csource);
+   for (int i = 0; i < line_number; i++) {
+      getline(ss, line);
+   }
+   std::cout << line << std::endl;
+   for (int i = 0; i < offset; i++) {
+      std::cout << " ";
+   }
+   
+   std::cout << "^" << std::endl;
+}
+
+static void compiler_warning(std::string msg, stb_lexer &lex) {
+   stb_lex_location loc;
+	stb_c_lexer_get_location(&lex, lex.where_firstchar, &loc);
+	std::cout << "test.htn:" << loc.line_number << ":" << loc.line_offset << ": warning: " << msg << std::endl;
+   print_line_with_arrow(loc.line_number, loc.line_offset);
+}
+
+static void compiler_error(std::string msg, stb_lexer &lex) {
+   stb_lex_location loc;
+	stb_c_lexer_get_location(&lex, lex.where_firstchar, &loc);
+	std::cout << "test.htn:" << loc.line_number << ":" << loc.line_offset << ": error: " << msg << std::endl;
+   print_line_with_arrow(loc.line_number, loc.line_offset);
+   error_count++;
+   if (error_count > 5) {
+      exit(-1);
+   }
+}
+
+std::string exec(const char* cmd) {
+    FILE* pipe = popen(cmd, "r");
+    if (!pipe) return "ERROR";
+    char buffer[128];
+    std::string result = "";
+    while(!feof(pipe)) {
+    	if(fgets(buffer, 128, pipe) != NULL)
+    		result += buffer;
+    }
+    pclose(pipe);
+    return result;
+}
+
 int main(int argc, char** argv) {
    std::string source = load_file("test.htn");
+   csource = source;
    Scope scope = parse(source);
+   if (error_count) {
+      return -1;
+   }
    std::ofstream ofs("test.s");
    generate_6502(scope, ofs);
-   //interpret(scope);
+   std::cout << exec("dasm test.s -f3 -v4 -otest.bin") << std::endl;
    return 0;
 }
 
