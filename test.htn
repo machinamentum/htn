@@ -1,131 +1,58 @@
 
+vsync : const *void  =  0x00;
+vblank : const *void =  0x01;
+wsync : const *void  =  0x02;
 
+colubk : const *void =  0x09;
 
 waitForVSync : () -> void {
-   __asm__("ldx #0");
-   __asm__("waitForVSync_loop:");
-   __asm__("inx");
-   __asm__("stx $09");
-   wsync : *void;
-   wsync = 2;
-   *wsync = 1;
-   __asm__("txa");
-   __asm__("cmp #192");
-   __asm__("bne waitForVSync_loop");
+   i : tiny = 0;
+   while ( i < 192 ) {
+      *colubk = i;
+      ++i;
+      *wsync = 1;
+   }
 }
 
 endOfFrame : () -> void {
-   __asm__("lda #%01000010");
-   __asm__("sta $01");
+   *vblank = 0b01000010 ;
    
-   
-   wsync : const *void = 2;
-   *wsync = 1;
-   *wsync = 1;
-   *wsync = 1;
-
-   *wsync = 1;
-   *wsync = 1;
-   *wsync = 1;
-   *wsync = 1;
-   *wsync = 1;
-   *wsync = 1;
-   *wsync = 1;
-   *wsync = 1;
-   *wsync = 1;
-   *wsync = 1;
-   *wsync = 1;
-   *wsync = 1;
-   *wsync = 1;
-   *wsync = 1;
-   *wsync = 1;
-   *wsync = 1;
-   *wsync = 1;
-   *wsync = 1;
-   *wsync = 1;
-   *wsync = 1;
-   *wsync = 1;
-   *wsync = 1;
-   *wsync = 1;
-   *wsync = 1;
-   *wsync = 1;
-   *wsync = 1;
-   *wsync = 1;
-   *wsync = 1;
-   *wsync = 1;
-   *wsync = 1;
-   *wsync = 1;
-   *wsync = 1;
-   *wsync = 1;
-   *wsync = 1;
-   
+   i : tiny = 0;
+   while ( i < 37 ) {
+      *wsync = 1;
+      ++i;
+   }
    
 }
 
 main : () -> void {
    
-      vsync : () -> void {
-      __asm__("lda #0");
-      __asm__("sta $01");
+   vsync_func : () -> void {
+      *vblank = 0;
+      *vsync = 2;
       
-      __asm__("lda #2");
-      __asm__("sta $00");
+      i : tiny = 0;
+      while (i < 3) {
+         *wsync = 2;
+         ++i;
+      }
       
-      __asm__("sta $02");
-      __asm__("sta $02");
-      __asm__("sta $02");
+      *vsync = 0;
       
-      __asm__("lda #0");
-      __asm__("sta $00");
-      
-      __asm__("sta $02");
-      __asm__("sta $02");
-      __asm__("sta $02");
-      __asm__("sta $02");
-      __asm__("sta $02");
-      __asm__("sta $02");
-      __asm__("sta $02");
-      __asm__("sta $02");
-      __asm__("sta $02");
-      __asm__("sta $02");
-      __asm__("sta $02");
-      __asm__("sta $02");
-      __asm__("sta $02");
-      __asm__("sta $02");
-      __asm__("sta $02");
-      __asm__("sta $02");
-      __asm__("sta $02");
-      __asm__("sta $02");
-      __asm__("sta $02");
-      __asm__("sta $02");
-      __asm__("sta $02");
-      __asm__("sta $02");
-      __asm__("sta $02");
-      __asm__("sta $02");
-      __asm__("sta $02");
-      __asm__("sta $02");
-      __asm__("sta $02");
-      __asm__("sta $02");
-      __asm__("sta $02");
-      __asm__("sta $02");
-      __asm__("sta $02");
-      __asm__("sta $02");
-      __asm__("sta $02");
-      __asm__("sta $02");
-      __asm__("sta $02");
-      __asm__("sta $02");
-      __asm__("sta $02");
-      
+      i = 0;
+      while ( i < 37 ) {
+         *wsync = 1;
+         ++i;
+      }
    }
-
-   __asm__("SEI");
-	__asm__("CLD");
-	__asm__("LDX #$FF");
-	__asm__("txs");
-   __asm__("lda #$61");
-   __asm__("sta $09");
-   vsync();
-   waitForVSync();
-   endOfFrame();
-   __asm__("jmp main");
+   
+   while ( true ) {
+      __asm__("SEI");
+      __asm__("CLD");
+      __asm__("LDX #$FF");
+      __asm__("txs");
+      vsync_func();
+      waitForVSync();
+      endOfFrame();
+   }
 }
