@@ -37,6 +37,7 @@
 
 #define STB_C_LEX_C_DECIMAL_INTS    Y   //  "0|[1-9][0-9]*"                        CLEX_intlit
 #define STB_C_LEX_C_HEX_INTS        Y   //  "0x[0-9a-fA-F]+"                       CLEX_intlit
+#define STB_C_LEX_C_BIN_INTS        Y   //  "0b[0-1]+"                             CLEX_intlit
 #define STB_C_LEX_C_OCTAL_INTS      Y   //  "[0-7]+"                               CLEX_intlit
 #define STB_C_LEX_C_DECIMAL_FLOATS  Y   //  "[0-9]*(.[0-9]*([eE]-?[0-9]+)?)        CLEX_floatlit
 #define STB_C_LEX_C_IDENTIFIERS     Y   //  "[_a-zA-Z][_a-zA-Z0-9]*"               CLEX_id
@@ -195,6 +196,10 @@ typedef long       stb__clex_int;
 
 #if STB_C_LEX_C_HEX_INTS(x)
 #define STB__clex_hex_ints
+#endif
+
+#if STB_C_LEX_C_BIN_INTS(x)
+#define STB__clex_bin_ints
 #endif
 
 #if STB_C_LEX_C_DECIMAL_INTS(x)
@@ -628,7 +633,7 @@ int stb_c_lexer_get_token(stb_lexer *lexer)
                if (p[1] == 'x' || p[1] == 'X') {
                   char *q = p+2;
                   #ifdef STB__CLEX_use_stdlib
-                  lexer->int_number = strtol((char *) p, (char **) q, 16);
+                  lexer->int_number = strtol((char *) p + 2,  &q, 16);
                   #else
                   stb__clex_int n=0;
                   while (q != lexer->eof) {
@@ -648,8 +653,32 @@ int stb_c_lexer_get_token(stb_lexer *lexer)
                      return stb__clex_token(lexer, CLEX_parse_error, p-2,p-1);
                   return stb__clex_parse_suffixes(lexer, CLEX_intlit, p,q, STB_C_LEX_HEX_SUFFIXES);
                }
+               
+               #ifdef STB__clex_bin_ints
+               else if (p[1] == 'b' || p[1] == 'B') {
+                  char *q = p+2;
+                  #ifdef STB__CLEX_use_stdlib
+                  lexer->int_number = strtol((char *) p + 2, &q, 2);
+                  #else
+                  stb__clex_int n=0;
+                  while (q != lexer->eof) {
+                     if (*q >= '0' && *q <= '1')
+                        n = n*2 + (*q - '0');
+                     else
+                        break;
+                     ++q;
+                  }
+                  lexer->int_field = n; // int_field is macro that expands to real_number/int_number depending on type of n
+                  #endif
+                  if (q == p+2)
+                     return stb__clex_token(lexer, CLEX_parse_error, p-2,p-1);
+                  return stb__clex_parse_suffixes(lexer, CLEX_intlit, p,q, STB_C_LEX_HEX_SUFFIXES);
+               }
+               #endif // STB__clex_bin_ints
+               
             }
          #endif // STB__clex_hex_ints
+         
          // can't test for octal because we might parse '0.0' as float or as '0' '.' '0',
          // so have to do float first
 
