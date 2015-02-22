@@ -82,7 +82,7 @@ struct Function {
    std::string name;
    std::vector<Variable> parameters;
    Scope *scope;
-   
+   bool should_inline = false;
    Function();
 };
 
@@ -192,7 +192,7 @@ Expression() {
 
 static void parse_scope(std::string name, Scope &parent, stb_lexer &lex, long delim_token = 0);
 static void parse_declaration(std::string name, Scope &scope, stb_lexer &lex);
-static void parse_function(std::string name, Scope &scope, stb_lexer &lex);
+static void parse_function(std::string name, Scope &scope, stb_lexer &lex, bool should_inline = false);
 static Variable parse_variable(std::string name, Scope &scope, stb_lexer &lex);
 static void parse_expression(std::string name, Scope &scope, stb_lexer &lex, bool deref);
 static Variable parse_rvalue(Scope &scope, stb_lexer &lex);
@@ -463,8 +463,17 @@ static void parse_declaration(std::string name, Scope &scope, stb_lexer &lex) {
    stb_c_lexer_get_token(&lex);
    if(lex.token == '(') {
       parse_function(name, scope, lex);
+   } else if(lex.token == CLEX_id) {
+      std::string tname = std::string(lex.string, strlen(lex.string));
+      if (tname.compare("inline") == 0) {
+          stb_c_lexer_get_token(&lex);
+         if(lex.token == '(') {
+            parse_function(name, scope, lex, true);
+         }
+      } else {
+         parse_variable(name, scope, lex);
+      }
    } else {
-      //printf("Parse var: %s\n", name.c_str());
       parse_variable(name, scope, lex);
    }
 }
@@ -488,9 +497,10 @@ static std::vector<Variable> parse_parameter_list(Scope &scope, stb_lexer &lex) 
 }
 
 
-static void parse_function(std::string name, Scope &scope, stb_lexer &lex) {
+static void parse_function(std::string name, Scope &scope, stb_lexer &lex, bool should_inline) {
    stb_c_lexer_get_token(&lex);
    Function func;
+   func.should_inline = should_inline;
    func.name = name;
    //printf("Parsing function: %s\n", name.c_str());
    func.scope->parent = &scope;
@@ -527,16 +537,31 @@ static void parse_expression(std::string name, Scope &scope, stb_lexer &lex, boo
 //   printf("\n");
    
    if (lex.token == '(') {
-      //printf("parsing function call\n");
-      instr.type = Instruction::FUNC_CALL;
-      instr.func_call_name = name;
-      instr.call_target_params = parse_parameter_list(scope, lex);
-      
-      stb_c_lexer_get_token(&lex);
-      if (lex.token != ';') {
-         compiler_error(std::string("expected token ';' before token '") + token_to_string(lex) + "'", lex);
+      Function *tfunc = scope.getFuncByName(name);
+      if (tfunc) {
+         if (tfunc->should_inline) {
+            parse_parameter_list(scope, lex); //TODO(josh)
+            for (Expression &expr : tfunc->scope->expressions) {
+               scope.expressions.push_back(expr);
+            }
+            stb_c_lexer_get_token(&lex);
+            if (lex.token != ';') {
+               compiler_error(std::string("expected token ';' before token '") + token_to_string(lex) + "'", lex);
+            }
+         } else {
+            instr.type = Instruction::FUNC_CALL;
+            instr.func_call_name = name;
+            instr.call_target_params = parse_parameter_list(scope, lex);
+            
+            stb_c_lexer_get_token(&lex);
+            if (lex.token != ';') {
+               compiler_error(std::string("expected token ';' before token '") + token_to_string(lex) + "'", lex);
+            }
+            expr.instructions.push_back(instr);
+         }
+      } else {
+         compiler_error(std::string("use of undeclared identifier '") + name + "'", lex);
       }
-      expr.instructions.push_back(instr);
    }
    /*else if (lex.token == ':') {
       scope.variables.push_back(parse_variable(name, scope, lex));
@@ -604,6 +629,18 @@ static std::string load_file(const std::string pathname) {
    return str;
 }
 
+static std::vector<char> load_bin_file(const std::string pathname) {
+   std::ifstream t(pathname);
+   std::vector<char> str;
+   
+   t.seekg(0, std::ios::end);
+   str.reserve(t.tellg());
+   t.seekg(0, std::ios::beg);
+   
+   str.assign((std::istreambuf_iterator<char>(t)), std::istreambuf_iterator<char>());
+   return str;
+}
+
 #include <iostream>
 #include <unordered_map>
 
@@ -625,18 +662,20 @@ struct Gen_6502 {
    }
    
    unsigned int get_scope_num(Scope *scope) {
-      if (!scope_names.count(scope)) {
-         scope_names[scope] = scope_num;
-         ++scope_num;
-      }
+//      if (!scope_names.count(scope)) {
+//         scope_names[scope] = scope_num;
+//         ++scope_num;
+//      }
       
-      return scope_names[scope];
+//      return scope_names[scope];
+      return scope_num++;
    }
    
    void gen_scope(Scope &scope, std::ostream &os);
    void gen_expression(std::string scope_name, Expression &expr, std::ostream &os);
-   void gen_scope_expressions(Scope &scope, std::ostream &os);
+   void gen_scope_expressions(std::string scope_name, Scope &scope, std::ostream &os);
    void gen_scope_functions(Scope &scope, std::ostream &os);
+   void gen_function(Function &func, std::ostream &os);
 };
 
 void Gen_6502::
@@ -713,22 +752,31 @@ gen_expression(std::string scope_name, Expression &expr, std::ostream &os) {
 void Gen_6502::
 gen_scope_functions(Scope &scope, std::ostream &os) {
     for (auto &func : scope.functions) {
-      gen_scope_functions(*func.scope, os);
-      variable_ram_map.clear();
-      if (func.name.compare("__asm__") == 0) continue;
-      os << func.name << ":" << std::endl;
-      gen_scope_expressions(*func.scope, os);
-
-      os << '\t' << "rts" << std::endl;
+      gen_function(func, os);
    }
 }
 
 void Gen_6502::
-gen_scope_expressions(Scope &scope, std::ostream &os) {
-   std::string scope_name = std::string("scope_") + std::to_string(get_scope_num(&scope));
+gen_scope_expressions(std::string scope_name, Scope &scope, std::ostream &os) {
+//   std::string scope_name = std::string("scope_") + std::to_string(get_scope_num(&scope));
    for (auto &expr : scope.expressions) {
       gen_expression(scope_name, expr, os);
       gen_scope(*expr.scope, os);
+   }
+}
+
+void Gen_6502::
+gen_function(Function &func, std::ostream &os) {
+   if (func.name.compare("__asm__") != 0) {
+      
+      variable_ram_map.clear();
+      if (!func.should_inline) {
+         os << func.name << ":" << std::endl;
+         gen_scope_expressions(func.name, *func.scope, os);
+
+         os << '\t' << "rts" << std::endl;
+      }
+      gen_scope_functions(*func.scope, os);
    }
 }
 
@@ -739,15 +787,9 @@ gen_scope(Scope &scope, std::ostream &os) {
    }
    std::string scope_name = std::string("scope_") + std::to_string(get_scope_num(&scope));
    os << scope_name << ":" << std::endl;
-   gen_scope_expressions(scope, os);
+   gen_scope_expressions(scope_name, scope, os);
    for (auto &func : scope.functions) {
-      gen_scope_functions(*func.scope, os);
-      variable_ram_map.clear();
-      if (func.name.compare("__asm__") == 0) continue;
-      os << func.name << ":" << std::endl;
-      gen_scope_expressions(*func.scope, os);
-
-      os << '\t' << "rts" << std::endl;
+      gen_function(func, os);
    }
    
    
@@ -755,7 +797,7 @@ gen_scope(Scope &scope, std::ostream &os) {
 
 
 static void generate_6502(Scope &scope, std::ostream &os) {
-   os << '\t' << "processor 6502" << std::endl;
+   //os << '\t' << "processor 6502" << std::endl;
    os << '\t' << "SEG" << std::endl;
    os << '\t' << "ORG $F000" << std::endl;
    Gen_6502 g6502;
@@ -822,6 +864,25 @@ std::string exec(const char* cmd) {
     return result;
 }
 
+
+extern "C" {
+   extern int main_asm6(int argc, char **argv);
+};
+
+void assemble_6502(const char *filename) {
+
+   auto create_str = [](const char *str) {
+      char *out = (char *)malloc(strlen(str) + 1);
+      snprintf(out, strlen(str) + 1, "%s", str);
+      return out;
+   };
+
+   char *args[3];
+   args[1] = create_str("-q");
+   args[2] = create_str(filename);
+   main_asm6(3, args);
+}
+
 int main(int argc, char** argv) {
    std::string source = load_file("test.htn");
    csource = source;
@@ -831,7 +892,9 @@ int main(int argc, char** argv) {
    }
    std::ofstream ofs("test.s");
    generate_6502(scope, ofs);
-   std::cout << exec("dasm test.s -f3 -v4 -otest.bin") << std::endl;
+   ofs.close();
+   //std::cout << exec("dasm test.s -f3 -v4 -otest.bin") << std::endl;
+   assemble_6502("test.s");
    return 0;
 }
 

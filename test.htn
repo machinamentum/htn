@@ -1,56 +1,60 @@
 
-vsync : const *void  =  0x00;
-vblank : const *void =  0x01;
-wsync : const *void  =  0x02;
+VSYNC : const *void  =  0x00;
+VBLANK : const *void =  0x01;
+WSYNC : const *void  =  0x02;
 
-colubk : const *void =  0x09;
+COLUBK : const *void =  0x09;
 
 waitForVSync : () -> void {
    i : tiny = 0;
    while ( i < 192 ) {
-      *colubk = i;
+      *COLUBK = i;
       ++i;
-      *wsync = 1;
+      *WSYNC = 1;
    }
 }
 
 endOfFrame : () -> void {
-   *vblank = 0b01000010 ;
+   *VBLANK = 0b01000010 ;
    
    i : tiny = 0;
    while ( i < 37 ) {
-      *wsync = 1;
+      *WSYNC = 1;
       ++i;
    }
    
+}
+
+__init : inline () -> void {
+   __asm__("sei");
+   __asm__("cld");
+   __asm__("LDX #$FF");
+   __asm__("txs");
 }
 
 main : () -> void {
    
    vsync_func : () -> void {
-      *vblank = 0;
-      *vsync = 2;
+      *VBLANK = 0;
+      *VSYNC = 2;
       
       i : tiny = 0;
       while (i < 3) {
-         *wsync = 2;
+         *WSYNC = 2;
          ++i;
       }
       
-      *vsync = 0;
+      *VSYNC = 0;
       
       i = 0;
       while ( i < 37 ) {
-         *wsync = 1;
+         *WSYNC = 1;
          ++i;
       }
    }
    
    while ( true ) {
-      __asm__("SEI");
-      __asm__("CLD");
-      __asm__("LDX #$FF");
-      __asm__("txs");
+      __init();
       vsync_func();
       waitForVSync();
       endOfFrame();

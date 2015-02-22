@@ -22,7 +22,7 @@ INCLUDES	:=	include
 #---------------------------------------------------------------------------------
 ARCH	:= 
 
-CFLAGS	:=	 -g -Wall -O2 -fomit-frame-pointer -ffast-math $(ARCH)
+CFLAGS	:=	 -g -Wall -Wno-missing-braces -O2 -fomit-frame-pointer -ffast-math $(ARCH)
 
 CFLAGS	+=	 $(INCLUDE)
 
