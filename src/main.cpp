@@ -488,6 +488,15 @@ static std::vector<Variable> parse_parameter_list(Scope &scope, stb_lexer &lex) 
          var.type = Variable::DQString;
          var.dqstring = std::string(lex.string, strlen(lex.string));
          plist.push_back(var);
+      } else if (lex.token == CLEX_id) {
+         std::string name = std::string(lex.string, strlen(lex.string));
+         Variable *var_ref = scope.getVarByName(name);
+         
+         if (var_ref) {
+            plist.push_back(*var_ref);
+         } else {
+            compiler_error(std::string("use of undeclared identifier '") + name + "'", lex);
+         }
       }
       
       stb_c_lexer_get_token(&lex);
@@ -708,7 +717,13 @@ gen_expression(std::string scope_name, Expression &expr, std::ostream &os) {
                if (instr.call_target_params[0].dqstring.find_first_of(':') == std::string::npos) {
                   os << '\t';
                }
-               os << instr.call_target_params[0].dqstring << std::endl;
+               std::string final = instr.call_target_params[0].dqstring;
+               while (final.find_first_of("@") != std::string::npos) {
+                  if (final.find_first_of("@0") != std::string::npos) {
+                     final.replace(final.find_first_of("@0"), 2, std::to_string(get_var_loc(instr.call_target_params[1].name)));
+                  }
+               }
+               os << final << std::endl;
             } else {
                Function *cfunc = expr.scope->getFuncByName(instr.func_call_name);
                if (!cfunc) {
@@ -769,7 +784,7 @@ void Gen_6502::
 gen_function(Function &func, std::ostream &os) {
    if (func.name.compare("__asm__") != 0) {
       
-      variable_ram_map.clear();
+      //variable_ram_map.clear();
       if (!func.should_inline) {
          os << func.name << ":" << std::endl;
          gen_scope_expressions(func.name, *func.scope, os);

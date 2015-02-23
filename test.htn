@@ -2,16 +2,60 @@
 VSYNC : const *void  =  0x00;
 VBLANK : const *void =  0x01;
 WSYNC : const *void  =  0x02;
-
+NUSIZ0 : const *void =  0x04;
+COLUP0 : const *void =  0x06;
 COLUBK : const *void =  0x09;
+
+GRP0 : const *void   =  0x1B;
+
+player_pos : tiny;
+player_col : tiny;
+cur_frame : tiny;
+
+data_carriage : () -> void {
+   __asm__("Frame0:");
+   __asm__(".byte #%11111111");
+   __asm__(".byte #%11111111");
+   __asm__(".byte #%10111011");
+   __asm__(".byte #%10111011");
+   __asm__(".byte #%11101111");
+   __asm__(".byte #%11111111");
+   __asm__(".byte #%11111111");
+   __asm__(".byte #%01010100");
+}
 
 waitForVSync : () -> void {
    i : tiny = 0;
-   while ( i < 192 ) {
-      *COLUBK = i;
+
+   while ( i < 96 ) {
       ++i;
+      __asm__("lda @0", i);
+      __asm__("cmp @0", player_pos);
+      __asm__("bcc cond_out");
+      __asm__("ldx @0", i);
+      __asm__("lda Frame0,x");
+      __asm__("sta $1B");
+      __asm__("lda @0", i);
+      __asm__("sbc @0", player_pos);
+      __asm__("cmp #8");
+      __asm__("bcc cond_out");
+      *GRP0 = 0;
+      __asm__("cond_out:");
+      *WSYNC = 1;
       *WSYNC = 1;
    }
+   
+   ++cur_frame;
+   
+   __asm__("lda @0", cur_frame);
+   __asm__("sbc #60");
+   __asm__("bcc cond_out2");
+   __asm__("lda @0", player_col);
+   __asm__("eor #$FF");
+   __asm__("sta @0", player_col);
+   cur_frame = 0;
+   *COLUP0 = player_col;
+   __asm__("cond_out2:");
 }
 
 endOfFrame : () -> void {
@@ -25,11 +69,27 @@ endOfFrame : () -> void {
    
 }
 
+ClearRAM : inline () -> void {
+   __asm__("ldx #0");
+   __asm__("lda #0");
+   __asm__("ClearRAM_loop:");
+   __asm__("sta $80,x");
+   __asm__("inx");
+   __asm__("cpx #$80");
+   __asm__("bne ClearRAM_loop");
+}
+
 __init : inline () -> void {
    __asm__("sei");
    __asm__("cld");
    __asm__("LDX #$FF");
    __asm__("txs");
+   *COLUBK = 0x70;
+   *COLUP0 = 0xC8;
+   ClearRAM();
+   player_col = 0xC8;
+   player_pos = 0;
+   cur_frame = 0;
 }
 
 main : () -> void {
@@ -52,11 +112,12 @@ main : () -> void {
          ++i;
       }
    }
-   
+   __init();
    while ( true ) {
-      __init();
+      
       vsync_func();
       waitForVSync();
       endOfFrame();
    }
 }
+
