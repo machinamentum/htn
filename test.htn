@@ -24,6 +24,11 @@ data_carriage : () -> void {
    __asm__(".byte #%01010100");
 }
 
+test_return : () -> tiny {
+   *NUSIZ0 = 7;
+   return 0x0F;
+}
+
 waitForVSync : () -> void {
    i : tiny = 0;
 
@@ -54,7 +59,7 @@ waitForVSync : () -> void {
    __asm__("eor #$FF");
    __asm__("sta @0", player_col);
    cur_frame = 0;
-   *COLUP0 = player_col;
+   *COLUP0 = test_return();
    __asm__("cond_out2:");
 }
 
