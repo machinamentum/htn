@@ -54,141 +54,9 @@ static void print_token(stb_lexer *lexer)
 #include <streambuf>
 #include <vector>
 #include <cstdint>
+#include <stack>
 
-struct Variable {
-   enum VType {
-      DQString,
-      VOID,
-      INT_8BIT,
-      INT_16BIT,
-      INT_32BIT,
-      INT_64BIT,
-      POINTER,
-      DEREFERENCED_POINTER
-   };
-   
-   std::string name;
-   std::string dqstring;
-   VType type;
-   VType ptype; //used when type is a pointer
-   intptr_t pvalue;
-   bool is_type_const = false;
-   bool is_ptype_const = false;
-};
-
-struct Scope;
-
-struct Function {
-   std::string name;
-   std::vector<Variable> parameters;
-   Scope *scope;
-   bool should_inline = false;
-   Variable return_info;
-   Function();
-};
-
-struct Conditional {
-   enum CType {
-      EQUAL,
-      GREATER_THAN,
-      LESS_THAN,
-      GREATER_EQUAL,
-      LESS_EQUAL
-   };
-   
-   Variable left;
-   CType condition;
-   Variable right;
-   bool is_always_true = false;
-};
-
-struct Instruction {
-   enum IType {
-      FUNC_CALL,
-      SUBROUTINE_JUMP, //used mainly for loops
-      ASSIGN,
-      INCREMENT
-   };
-   
-   IType type;
-   std::string func_call_name;
-   std::vector<Variable> call_target_params;
-   Variable lvalue_data;
-   Variable rvalue_data;
-   bool is_conditional_jump = false;
-   Conditional condition;
-};
-
-
-
-struct Expression {
-   std::vector<Instruction> instructions;
-   
-   /**
-    * holds the variable data of the destination variable or 
-    * (in the case of a return) the data of a temporary, or const,
-    * that the expression will evaluate to.
-    */
-   Variable return_value;
-   Scope *scope;
-   
-   Expression();
-};
-
-struct Scope {
-   
-   std::vector<Function> functions;
-   std::vector<Expression> expressions;
-   std::vector<Variable> variables;
-   std::vector<Scope *> children;
-   Scope *parent;
-   bool is_function = false;
-   Function *function;
-   
-   Scope(Scope *p = nullptr) {
-      parent = p;
-   }
-
-   bool contains_symbol(const std::string name) {
-      for (auto& f : functions) {
-         if (f.name.compare(name) == 0) {
-            return true;
-         }
-      }
-      
-      for (auto &f : variables) {
-         if (f.name.compare(name) == 0) {
-            return true;
-         }
-      }
-      
-      return (parent ? parent->contains_symbol(name) : false);
-   }
-   
-   Function *getFuncByName(const std::string name) {
-      for (auto &f : functions) {
-         if (f.name.compare(name) == 0) {
-            return &f;
-         }
-      }
-      
-      return (parent ? parent->getFuncByName(name) : nullptr);
-   }
-   
-   Variable *getVarByName(const std::string name) {
-      for (auto &f : variables) {
-         if (f.name.compare(name) == 0) {
-            return &f;
-         }
-      }
-      
-      return (parent ? parent->getVarByName(name) : nullptr);
-   }
-
-   bool empty() {
-      return !functions.size() && !expressions.size() && !children.size();
-   }
-};
+#include "Code_Structure.h"
 
 Function::
 Function() {
@@ -202,10 +70,15 @@ Expression() {
    scope = new Scope();
 }
 
+static std::stack<std::string> source_code_stack;
+static std::stack<std::string> source_file_name;
+
+static Function asmInlineFunc();
+static std::string load_file(const std::string pathname);
 static void parse_scope(std::string name, Scope &parent, stb_lexer &lex, long delim_token = 0);
 static void parse_declaration(std::string name, Scope &scope, stb_lexer &lex);
-static void parse_function(std::string name, Scope &scope, stb_lexer &lex, bool should_inline = false);
-static Variable parse_variable(std::string name, Scope &scope, stb_lexer &lex);
+static void parse_function(std::string name, Scope &scope, stb_lexer &lex, bool should_inline = false, bool is_plain = false);
+static Variable parse_variable(std::string name, Scope &scope, stb_lexer &lex, char delim_token = ';', char opt_delim_token = ';');
 static Expression parse_expression(std::string name, Scope &scope, stb_lexer &lex, bool deref);
 static std::vector<Instruction> parse_rvalue(Variable dst, Scope &scope, stb_lexer &lex);
 static std::vector<Variable> parse_parameter_list(Scope &scope, stb_lexer &lex);
@@ -370,7 +243,27 @@ static void parse_scope(std::string name_str, Scope &scope, stb_lexer &lex, long
          parse_preincrement(scope, lex);
       } else if(lex.token == CLEX_id) {
          std::string name = std::string(lex.string, strlen(lex.string));
-         if (name.compare("while") == 0) {
+         
+         if (name.compare("import") == 0) {
+            stb_c_lexer_get_token(&lex);
+            if (lex.token == CLEX_dqstring) {
+               std::string import_str = std::string(lex.string, strlen(lex.string));
+               std::string import_src = load_file(import_str);
+               source_code_stack.push(import_src);
+               source_file_name.push(import_str);
+               const char *text = import_src.c_str();
+               int len = strlen(text);
+               stb_lexer nlex;
+               stb_c_lexer_init(&nlex, text, text+len, (char *) malloc(1<<16), 1<<16);
+               parse_scope(name_str, scope, nlex, CLEX_eof);
+               source_code_stack.pop();
+               source_file_name.pop();
+               stb_c_lexer_get_token(&lex);
+               if (lex.token != ';') {
+                  compiler_error(std::string("expected token ';' before token '") + token_to_string(lex) + "'", lex);
+               }
+            }
+         } else if (name.compare("while") == 0) {
             parse_while_loop(scope, lex);
          } else if (name.compare("return") == 0) {
             parse_return(scope, lex);
@@ -403,6 +296,8 @@ static void parse_scope(std::string name_str, Scope &scope, stb_lexer &lex, long
 static Variable::VType get_vtype(std::string t) {
    if (t.compare("void") == 0) {
       return Variable::VOID;
+   } else if (t.compare("char") == 0) {
+      return Variable::CHAR;
    } else if (t.compare("tiny") == 0) {
       return Variable::INT_8BIT;
    } else if (t.compare("small") == 0) {
@@ -431,12 +326,12 @@ static Variable parse_const_assign(Variable dst, Scope &scope, stb_lexer &lex) {
    return var;
 }
 
-static Variable parse_variable(std::string name, Scope &scope, stb_lexer &lex) {
+static Variable parse_variable(std::string name, Scope &scope, stb_lexer &lex, char delim_token, char opt_delim_token) {
    Variable var;
    var.name = name;
    bool is_pointer = false;
    bool push = true;
-   while (lex.token != ';') {
+   while (lex.token != delim_token) {
       if (lex.token == '*') {
          is_pointer = true;
          var.type = Variable::POINTER;
@@ -465,7 +360,7 @@ static Variable parse_variable(std::string name, Scope &scope, stb_lexer &lex) {
             break;
          }
       }
-      
+      if (lex.token == opt_delim_token) break;
       stb_c_lexer_get_token(&lex);
    }
    
@@ -544,6 +439,11 @@ static void parse_declaration(std::string name, Scope &scope, stb_lexer &lex) {
          if(lex.token == '(') {
             parse_function(name, scope, lex, true);
          }
+      } else if (tname.compare("plain") == 0) {
+          stb_c_lexer_get_token(&lex);
+         if(lex.token == '(') {
+            parse_function(name, scope, lex, false, true);
+         }
       } else {
          parse_variable(name, scope, lex);
       }
@@ -553,26 +453,60 @@ static void parse_declaration(std::string name, Scope &scope, stb_lexer &lex) {
 }
 
 static std::vector<Variable> parse_parameter_list(Scope &scope, stb_lexer &lex) {
-   stb_c_lexer_get_token(&lex);
+   //stb_c_lexer_get_token(&lex);
    std::vector<Variable> plist;
+   
    while (lex.token != ')') {
-      Variable var;
-      
+//      print_token(&lex);
       if (lex.token == CLEX_dqstring) {
+         Variable var;
          var.type = Variable::DQString;
          var.dqstring = std::string(lex.string, strlen(lex.string));
          plist.push_back(var);
+         stb_c_lexer_get_token(&lex);
+         if (lex.token != ',' && lex.token != ')') {
+            compiler_error(std::string("expected token ',' or ')' before token '") + token_to_string(lex) + "'", lex);
+         }
+         
+         if (lex.token == ')') break;
+      } else if (lex.token == '-' || lex.token == CLEX_intlit) {
+         int mul = 1;
+         if (lex.token == '-') {
+            mul = -1;
+            stb_c_lexer_get_token(&lex);
+            if (lex.token != CLEX_intlit) {
+               compiler_error(std::string("expected int literal before token '") + token_to_string(lex) + "'", lex);
+            }
+         }
+         Variable var;
+         var.ptype = Variable::INT_32BIT;
+         printf("Int param %ld\n", lex.int_number * mul);
+         var.pvalue = lex.int_number * mul;
+         var.is_ptype_const = true;
+         plist.push_back(var);
+         stb_c_lexer_get_token(&lex);
+         if (lex.token != ',' && lex.token != ')') {
+            compiler_error(std::string("expected token ',' or ')' before token '") + token_to_string(lex) + "'", lex);
+         }
       } else if (lex.token == CLEX_id) {
          std::string name = std::string(lex.string, strlen(lex.string));
-         Variable *var_ref = scope.getVarByName(name);
-         
-         if (var_ref) {
-            plist.push_back(*var_ref);
+         stb_c_lexer_get_token(&lex);
+         //printf("name %s\n", name.c_str());
+         if (lex.token == ':') {
+            Variable var = parse_variable(name, scope, lex, ',', ')');
+            plist.push_back(var);
+            continue;
          } else {
-            compiler_error(std::string("use of undeclared identifier '") + name + "'", lex);
+            Variable *var_ref = scope.getVarByName(name);
+            
+            if (var_ref) {
+               plist.push_back(*var_ref);
+            } else {
+               compiler_error(std::string("488: use of undeclared identifier '") + name + "'", lex);
+            }
          }
       }
-      
+      if (lex.token == ')') break;
       stb_c_lexer_get_token(&lex);
    }
    
@@ -580,12 +514,11 @@ static std::vector<Variable> parse_parameter_list(Scope &scope, stb_lexer &lex) 
 }
 
 
-static void parse_function(std::string name, Scope &scope, stb_lexer &lex, bool should_inline) {
-   stb_c_lexer_get_token(&lex);
+static void parse_function(std::string name, Scope &scope, stb_lexer &lex, bool should_inline, bool is_plain) {
    Function func;
    func.should_inline = should_inline;
+   func.plain_instructions = is_plain;
    func.name = name;
-   //printf("Parsing function: %s\n", name.c_str());
    func.scope->parent = &scope;
    if (lex.token != ')') {
       func.parameters = parse_parameter_list(*func.scope, lex);
@@ -607,7 +540,13 @@ static void parse_function(std::string name, Scope &scope, stb_lexer &lex, bool 
    }
    stb_c_lexer_get_token(&lex);
    if (lex.token != '{') {
-      compiler_error(std::string("unexpected token '") + token_to_string(lex)+ "'", lex);
+      if (lex.token == ';') {
+         func.is_not_definition = true;
+         scope.functions.push_back(func);
+         return;
+      } else {
+         compiler_error(std::string("unexpected token '") + token_to_string(lex)+ "'", lex);
+      }
    }
    
    parse_scope(name, *func.scope, lex, '}');
@@ -697,25 +636,25 @@ static Function asmInlineFunc() {
 }
 
 static Scope parse(std::string src) {
+   source_code_stack.push(src);
    const char *text = src.c_str();
    int len = strlen(text);
    stb_lexer lex;
    stb_c_lexer_init(&lex, text, text+len, (char *) malloc(1<<16), 1<<16);
    Scope globalScope;
-//   Function print_func;
-//   print_func.name = "print";
-//   Variable dqs;
-//   dqs.type = Variable::DQString;
-//   print_func.parameters.push_back(dqs);
-//   globalScope.functions.push_back(print_func);
    globalScope.functions.push_back(asmInlineFunc());
    parse_scope(std::string(), globalScope, lex, CLEX_eof);
+   source_code_stack.pop();
    return globalScope;
 }
 
 
 static std::string load_file(const std::string pathname) {
    std::ifstream t(pathname);
+   if (!t.good()) {
+      printf("File not found: %s\n", pathname.c_str());
+      exit(-1);
+   }
    std::string str;
    
    t.seekg(0, std::ios::end);
@@ -739,183 +678,8 @@ static std::vector<char> load_bin_file(const std::string pathname) {
 }
 
 #include <iostream>
-#include <unordered_map>
 
-struct Gen_6502 {
-
-   std::unordered_map<std::string, unsigned int> variable_ram_map;
-   std::unordered_map<Scope*, unsigned int> scope_names;
-   unsigned int ramp = 0;
-   unsigned int scope_num = 0;
-   const unsigned int RAM_START_ADDR = 0x180;
-   
-   unsigned int get_var_loc (std::string name) {
-      if (!variable_ram_map.count(name)) {
-         variable_ram_map[name] = ramp;
-         ++ramp;
-      }
-      
-      return (variable_ram_map[name] + RAM_START_ADDR);
-   }
-   
-   unsigned int get_scope_num(Scope *scope) {
-//      if (!scope_names.count(scope)) {
-//         scope_names[scope] = scope_num;
-//         ++scope_num;
-//      }
-      
-//      return scope_names[scope];
-      return scope_num++;
-   }
-   
-   void gen_scope(Scope &scope, std::ostream &os);
-   void gen_expression(std::string scope_name, Expression &expr, std::ostream &os);
-   void gen_scope_expressions(std::string scope_name, Scope &scope, std::ostream &os);
-   void gen_scope_functions(Scope &scope, std::ostream &os);
-   void gen_function(Function &func, std::ostream &os);
-};
-
-void Gen_6502::
-gen_expression(std::string scope_name, Expression &expr, std::ostream &os) {
-   Instruction prevInstr;
-   for (auto &instr : expr.instructions) {
-      switch (instr.type) {
-         case Instruction::INCREMENT: {
-            printf("increment\n");
-            os << '\t' << "inc " << get_var_loc(instr.lvalue_data.name) << std::endl;
-         } break;
-         case Instruction::SUBROUTINE_JUMP: {
-            printf("sub jump\n");
-            if (instr.func_call_name.compare("SOS_JUMP") == 0) {
-               if (instr.is_conditional_jump && !instr.condition.is_always_true) {
-                  os << '\t' << "lda #" << instr.condition.right.pvalue << std::endl;
-                  os << '\t' << "cmp " << get_var_loc(instr.condition.left.name) << std::endl;
-                  switch (instr.condition.condition) {
-                     case Conditional::LESS_THAN: {
-                        os << '\t' << "bcs " << scope_name << std::endl;
-                     } break;
-                  }
-               } else {
-                  os << '\t' << "jmp " << scope_name << std::endl;
-               }
-            }
-         } break;
-         case Instruction::FUNC_CALL: {
-            if (instr.func_call_name.compare("__asm__") == 0) {
-               if (instr.call_target_params[0].dqstring.find_first_of(':') == std::string::npos) {
-                  os << '\t';
-               }
-               std::string final = instr.call_target_params[0].dqstring;
-               while (final.find_first_of("@") != std::string::npos) {
-                  if (final.find_first_of("@0") != std::string::npos) {
-                     final.replace(final.find_first_of("@0"), 2, std::to_string(get_var_loc(instr.call_target_params[1].name)));
-                  }
-               }
-               os << final << std::endl;
-            } else {
-               Function *cfunc = expr.scope->getFuncByName(instr.func_call_name);
-               if (!cfunc) {
-                  printf("Undefined reference to %s\n", instr.func_call_name.c_str());
-               } else {
-                  os << '\t' << "jsr " << cfunc->name << std::endl;
-               }
-            }
-         } break;
-         case Instruction::ASSIGN: {
-            if (instr.lvalue_data.type == Variable::POINTER) {
-               if (instr.lvalue_data.name.compare("return") == 0) {
-                  if (instr.rvalue_data.is_type_const) {
-                     os << '\t' << "lda #" << instr.rvalue_data.pvalue << std::endl;
-                  } else {
-                     os << '\t' << "lda " << get_var_loc(instr.rvalue_data.name) << std::endl;
-                  }
-                  os << '\t' << "rts" << std::endl;
-               } else {
-                  if (instr.rvalue_data.name.compare("return_reg") == 0) {
-                     //no op because we presume that this always follows a lda & rts
-                  } else if (instr.rvalue_data.is_type_const) {
-                     os << '\t' << "lda #" << instr.rvalue_data.pvalue << std::endl;
-                  } else {
-                     os << '\t' << "lda " << get_var_loc(instr.rvalue_data.name) << std::endl;
-                  }
-                  os << '\t' << "sty " << get_var_loc(instr.lvalue_data.name) << std::endl;
-               }
-            } else if (instr.lvalue_data.type == Variable::DEREFERENCED_POINTER) {
-               if (!(prevInstr.type == Instruction::ASSIGN
-                     && prevInstr.lvalue_data.type == Variable::DEREFERENCED_POINTER
-                     && prevInstr.lvalue_data.name.compare(instr.lvalue_data.name) == 0
-                     && prevInstr.rvalue_data.pvalue == instr.rvalue_data.pvalue)) {
-                  if (!instr.lvalue_data.is_type_const) {
-                     os << '\t' << "ldy " << get_var_loc(instr.lvalue_data.name) << std::endl;
-                  }
-                  if (instr.rvalue_data.name.compare("return_reg") == 0) {
-                     //no op because we presume that this always follows a lda & rts
-                  } else if (instr.rvalue_data.is_type_const) {
-                     os << '\t' << "lda #" << instr.rvalue_data.pvalue << std::endl;
-                  } else {
-                     os << '\t' << "lda " << get_var_loc(instr.rvalue_data.name) << std::endl;
-                  }
-               }
-               if (instr.lvalue_data.is_type_const) {
-                  os << '\t' << "sta " << instr.lvalue_data.pvalue << std::endl;
-               } else {
-                  os << '\t' << "sta 0,y" << std::endl;
-               }
-            }
-         } break;
-      }
-      
-      prevInstr = instr;
-   }
-}
-
-void Gen_6502::
-gen_scope_functions(Scope &scope, std::ostream &os) {
-    for (auto &func : scope.functions) {
-      gen_function(func, os);
-   }
-}
-
-void Gen_6502::
-gen_scope_expressions(std::string scope_name, Scope &scope, std::ostream &os) {
-//   std::string scope_name = std::string("scope_") + std::to_string(get_scope_num(&scope));
-   for (auto &expr : scope.expressions) {
-      gen_expression(scope_name, expr, os);
-      gen_scope(*expr.scope, os);
-   }
-}
-
-void Gen_6502::
-gen_function(Function &func, std::ostream &os) {
-   if (func.name.compare("__asm__") != 0) {
-      
-      //variable_ram_map.clear();
-      if (!func.should_inline) {
-         os << func.name << ":" << std::endl;
-         gen_scope_expressions(func.name, *func.scope, os);
-         if (func.return_info.ptype == Variable::VOID) {
-            os << '\t' << "rts" << std::endl;
-         }
-      }
-      gen_scope_functions(*func.scope, os);
-   }
-}
-
-void Gen_6502::
-gen_scope(Scope &scope, std::ostream &os) {
-   if (scope.empty()) {
-      return;
-   }
-   std::string scope_name = std::string("scope_") + std::to_string(get_scope_num(&scope));
-   os << scope_name << ":" << std::endl;
-   gen_scope_expressions(scope_name, scope, os);
-   for (auto &func : scope.functions) {
-      gen_function(func, os);
-   }
-   
-   
-}
-
+#include "Gen_6502.h"
 
 static void generate_6502(Scope &scope, std::ostream &os) {
    //os << '\t' << "processor 6502" << std::endl;
@@ -930,19 +694,32 @@ static void generate_6502(Scope &scope, std::ostream &os) {
    os << '\t' << "END" << std::endl;
 }
 
-#include <fstream>
+#include "Gen_386.h"
 
+static void generate_386(Scope &scope, std::ostream &os) {
+   //os << ".intel_syntax" << std::endl;
+   //generate function extern table (GAS doesnt require this?)
+   //os << ".data" << std::endl;
+   //generate data section
+   //os << ".text" << std::endl;
+   os << ".section __TEXT,__text,regular,pure_instructions" << std::endl;
+   Gen_386 g386;
+   g386.gen_scope(scope, os);
+   
+   os << ".section __TEXT,__cstring,cstring_literals" << std::endl;
+   g386.gen_rodata(os);
+}
+
+#include <fstream>
 #include <string>
-#include <iostream>
 #include <stdio.h>
 #include <sstream>
 
 static int error_count = 0;
-static std::string csource;
 
 static void print_line_with_arrow(int line_number, int offset) {
    std::string line;
-   std::stringstream ss(csource);
+   std::stringstream ss(source_code_stack.top());
    for (int i = 0; i < line_number; i++) {
       getline(ss, line);
    }
@@ -957,14 +734,14 @@ static void print_line_with_arrow(int line_number, int offset) {
 static void compiler_warning(std::string msg, stb_lexer &lex) {
    stb_lex_location loc;
 	stb_c_lexer_get_location(&lex, lex.where_firstchar, &loc);
-	std::cout << "test.htn:" << loc.line_number << ":" << loc.line_offset << ": warning: " << msg << std::endl;
+	std::cout << source_file_name.top() << ":" << loc.line_number << ":" << loc.line_offset << ": warning: " << msg << std::endl;
    print_line_with_arrow(loc.line_number, loc.line_offset);
 }
 
 static void compiler_error(std::string msg, stb_lexer &lex) {
    stb_lex_location loc;
 	stb_c_lexer_get_location(&lex, lex.where_firstchar, &loc);
-	std::cout << "test.htn:" << loc.line_number << ":" << loc.line_offset << ": error: " << msg << std::endl;
+	std::cout << source_file_name.top() << ":" << loc.line_number << ":" << loc.line_offset << ": error: " << msg << std::endl;
    print_line_with_arrow(loc.line_number, loc.line_offset);
    error_count++;
    if (error_count > 5) {
@@ -972,8 +749,9 @@ static void compiler_error(std::string msg, stb_lexer &lex) {
    }
 }
 
-std::string exec(const char* cmd) {
-    FILE* pipe = popen(cmd, "r");
+std::string exec(std::string cmd) {
+    printf("%s\n", cmd.c_str());
+    FILE* pipe = popen(cmd.c_str(), "r");
     if (!pipe) return "ERROR";
     char buffer[128];
     std::string result = "";
@@ -990,6 +768,9 @@ extern "C" {
    extern int main_asm6(int argc, char **argv);
 };
 
+static std::string output_file;
+bool no_link = false;
+
 void assemble_6502(const char *filename) {
 
    auto create_str = [](const char *str) {
@@ -1004,18 +785,85 @@ void assemble_6502(const char *filename) {
    main_asm6(3, args);
 }
 
+#include <cstdio>
+
+void assemble_386(std::string path_str) {
+   std::string out(path_str);
+   out.replace(out.rfind(".s"), 2, ".o");
+   if (no_link) {
+      if (output_file.compare("") == 0) {
+         output_file = out;
+      }
+      std::cout << exec(std::string("as -arch i386 -g -Q -o ") + output_file + " " + path_str) << std::endl;
+   } else {
+      std::cout << exec(std::string("as -arch i386 -g -Q -o ") + out + " " + path_str) << std::endl;
+      if (output_file.compare("") == 0) {
+         output_file = out;
+         output_file.replace(output_file.rfind(".o"), 2, "");
+      }
+      std::cout << exec(std::string("ld -arch i386 -e _htn_ctr0_OSX_i386_start  -macosx_version_min 10.10 -o ") + output_file + " " + out + " -lc") << std::endl;
+      remove(out.c_str());
+   }
+   remove(path_str.c_str());
+}
+
+static void print_usage() {
+   printf("Usage: htn [options] <sources> \n");
+   printf("\nOptions:\n");
+   printf("     -m386      IA-32 executable\n");
+   printf("     -m6502     MOS 6502 flat binary, Atari 2600 flavor\n");
+   printf("     -o <out>   Specify file for output\n");
+   printf("     -c         Stop after compilation, does not invoke linker\n");
+}
+
 int main(int argc, char** argv) {
-   std::string source = load_file("test.htn");
-   csource = source;
+   if (argc < 2) {
+      print_usage();
+      return 0;
+   }
+   bool gen386 = true;
+   std::string source_path;
+   for (int i = 1; i < argc; ++i) {
+      std::string arch = argv[i];
+      if (arch.compare("-m386") == 0) {
+         gen386 = true;
+      } else if(arch.compare("-m6502") == 0) {
+         gen386 = false;
+      } else if (arch.compare("-c") == 0) {
+         no_link = true;
+      } else if (arch.compare("-o") == 0) {
+         ++i;
+         if (i >= argc) {
+            printf("Not enough args to support -o switch\n");
+            break;
+         }
+         output_file = argv[i];
+      } else if (arch.rfind("-") == 0) {
+         printf("Unrecognized option: %s\n", arch.c_str());
+      } else {
+         source_path = argv[i];
+      }
+   }
+   
+   std::string source = load_file(source_path);
+   source_file_name.push(source_path);
    Scope scope = parse(source);
+   source_file_name.pop();
    if (error_count) {
       return -1;
    }
-   std::ofstream ofs("test.s");
-   generate_6502(scope, ofs);
-   ofs.close();
-   //std::cout << exec("dasm test.s -f3 -v4 -otest.bin") << std::endl;
-   assemble_6502("test.s");
+   source_path.replace(source_path.rfind(".htn"), std::string::npos, ".s");
+   std::ofstream ofs(source_path);
+   if (gen386) {
+      generate_386(scope, ofs);
+      ofs.close();
+      assemble_386(source_path);
+   } else {
+      generate_6502(scope, ofs);
+      ofs.close();
+      assemble_6502(source_path.c_str());
+   }
+   
    return 0;
 }
 

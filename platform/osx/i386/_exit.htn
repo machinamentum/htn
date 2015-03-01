@@ -1,0 +1,10 @@
+
+
+_exit : plain (rval : int) -> void {
+   __asm__("mov @0, %eax", rval);
+   __asm__("sub $4, %esp");
+   __asm__("push %eax");
+   __asm__("sub $4, %esp");
+   __asm__("mov $1, %eax");
+   __asm__("int $0x80");
+}

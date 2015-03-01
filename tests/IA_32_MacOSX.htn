@@ -1,0 +1,26 @@
+
+
+printf : (fmtStr : const *char) -> void;
+
+main : () -> void {
+
+   import "platform/osx/i386/_exit.htn";
+
+   printf("Hello World\n");
+   printf("Finally :)\n");
+   _exit(-1);
+}
+
+
+htn_ctr0_OSX_i386_start : plain () -> void {
+   __asm__("push %ebp");
+   __asm__("mov %esp, %ebp");
+   main();
+   __asm__("add $8, %esp");
+   __asm__("pop %ebp");
+   __asm__("sub $8, %esp");
+   __asm__("mov $0, %eax");
+   __asm__("push %eax");
+   __asm__("mov $1, %eax");
+   __asm__("int $0x80");
+}

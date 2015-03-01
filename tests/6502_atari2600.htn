@@ -119,7 +119,6 @@ main : () -> void {
    }
    __init();
    while ( true ) {
-      
       vsync_func();
       waitForVSync();
       endOfFrame();
