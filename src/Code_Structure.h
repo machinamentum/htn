@@ -15,6 +15,7 @@ struct Variable {
       INT_16BIT,
       INT_32BIT,
       INT_64BIT,
+      FLOAT_32BIT,
       POINTER,
       DEREFERENCED_POINTER
    };
@@ -24,6 +25,7 @@ struct Variable {
    VType type;
    VType ptype; //used when type is a pointer
    intptr_t pvalue;
+   float fvalue;
    bool is_type_const = false;
    bool is_ptype_const = false;
 };
@@ -33,7 +35,7 @@ struct Scope;
 struct Function {
    std::string name;
    std::vector<Variable> parameters;
-   Scope *scope;
+   Scope *scope = nullptr;
    bool should_inline = false;
    bool plain_instructions = false;
    bool is_not_definition = false;
@@ -61,7 +63,8 @@ struct Instruction {
       FUNC_CALL,
       SUBROUTINE_JUMP, //used mainly for loops
       ASSIGN,
-      INCREMENT
+      INCREMENT,
+      LOG_OR
    };
    
    IType type;
@@ -84,7 +87,7 @@ struct Expression {
     * that the expression will evaluate to.
     */
    Variable return_value;
-   Scope *scope;
+   Scope *scope = nullptr;
    
    Expression();
 };
@@ -94,8 +97,8 @@ struct Scope {
    std::vector<Function> functions;
    std::vector<Expression> expressions;
    std::vector<Variable> variables;
-   std::vector<Scope *> children;
-   Scope *parent;
+   //std::vector<Scope *> children;
+   Scope *parent = nullptr;
    bool is_function = false;
    Function *function;
    
@@ -143,7 +146,7 @@ struct Scope {
          }
       }
       
-      if (function) {
+      if (is_function) {
          for (auto &f : function->parameters) {
             if (f.name.compare(name) == 0) {
                return &f;
@@ -155,7 +158,7 @@ struct Scope {
    }
 
    bool empty() {
-      return !functions.size() && !expressions.size() && !children.size();
+      return !functions.size() && !expressions.size();
    }
 };
 

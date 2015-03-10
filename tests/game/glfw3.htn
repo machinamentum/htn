@@ -1,0 +1,10 @@
+
+
+glfwInit : () -> int;
+glfwCreateWindow : (width : int, height : int, title : *char, uk0 : int, uk1 : int) -> int;
+glfwMakeContextCurrent : (window : *void) -> void;
+glfwWindowShouldClose : (window : *void) -> int;
+glfwSwapBuffers : (window : *void) -> void;
+glfwPollEvents : () -> void;
+glfwTerminate : () -> void;
+glfwDestroyWindow : (window : *void) -> void;

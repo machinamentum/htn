@@ -1,0 +1,14 @@
+
+
+_write : (fd : int, cbuf : *char, nbyte : int) -> int {
+   rval : int = 0;
+   __asm__("push @0", nbyte);
+   __asm__("push @0", cbuf);
+   __asm__("push @0", fd);
+   __asm__("sub $4, %esp");
+   __asm__("mov $4, %eax");
+   __asm__("int $0x80");
+   __asm__("add $16, %esp");
+   __asm__("mov %eax, @0", rval);
+   return rval;
+}

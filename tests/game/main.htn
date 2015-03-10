@@ -1,0 +1,51 @@
+
+O_RDONLY  : const int = 0x0000;
+O_WRONLY  : const int = 0x0001;
+O_RDWR    : const int = 0x0002;
+O_ACCMODE : const int = 0x0003;
+O_CREATE  : const int = 0x0200;
+O_CLOEXEC : const int = 0x1000000;
+
+import "platform/osx/i386/_exit.htn";
+//import "platform/osx/i386/_write.htn";
+//import "platform/osx/i386/_open.htn";
+//import "platform/osx/i386/_close.htn";
+import "glfw3.htn";
+import "gl.htn";
+
+main : () -> int {
+   window : *void;
+   glfwInit();
+   
+   window = glfwCreateWindow(320, 240, "Hello World", 0, 0);
+   
+   glfwMakeContextCurrent(window);
+   test : int = 0;
+   while(test < 1) {
+      glLoadIdentity();
+      glScalef(1.5, 1.5, 1.0);
+      glClearColor(0.0, 0.0, 0.0, 1.0);
+      glClear(GL_COLOR_BUFFER_BIT);
+      glBegin(GL_TRIANGLES);
+      glColor3f(1.0, 0.0, 0.0);
+      glVertex3f(0.0, 0.5, 0.0);
+      glColor3f(0.0, 1.0, 0.0);
+      glVertex3f(0.5, 0.5, 0.0);
+      glColor3f(0.0, 0.0, 1.0);
+      glVertex3f(0.5, 0.0, 0.0);
+      glEnd();
+      test = glfwWindowShouldClose(window);
+      glfwSwapBuffers(window);
+      glfwPollEvents();
+   }
+   
+   glfwDestroyWindow(window);
+   glfwTerminate();
+   return 0;
+}
+
+
+htn_ctr0_OSX_i386_start :  () -> void {
+   ret : int = main();
+   _exit(ret);
+}

@@ -115,11 +115,11 @@ std::string token_to_string(stb_lexer &lex) {
          //case CLEX_sqstring  : printf("'\"%s\"'", lexer->string); break;
       case CLEX_charlit   : return "'" + std::string(lex.string, strlen(lex.string)) + "'";
 #if defined(STB__clex_int_as_double) && !defined(STB__CLEX_use_stdlib)
-      //case CLEX_intlit    : printf("#%g", lexer->real_number); break;
+      case CLEX_intlit    : printf("#%g", lex.real_number); break;
 #else
-     // case CLEX_intlit    : printf("#%ld", lexer->int_number); break;
+      case CLEX_intlit    : printf("#%ld", lex.int_number); break;
 #endif
-     // case CLEX_floatlit  : printf("%g", lexer->real_number); break;
+      case CLEX_floatlit  : printf("%g", lex.real_number); break;
       default:
          if (lex.token >= 0 && lex.token < 256)
             return std::string() + (char)lex.token;
@@ -145,6 +145,8 @@ static Conditional parse_conditional(Scope &scope, stb_lexer &lex) {
             compiler_error(std::string("Conditional laziness error"), lex);
          }
          return cond;
+      } else {
+         compiler_error(std::string("use of undeclared identifier '") + token_to_string(lex) + "'", lex);
       }
    }
    stb_c_lexer_get_token(&lex);
@@ -175,23 +177,36 @@ static void parse_while_loop(Scope &scope, stb_lexer &lex) {
    }
    
    Expression expr;
+   expr.scope->parent = &scope;
    Conditional cond = parse_conditional(scope, lex);
-   
+   if (!cond.is_always_true) {
+      Expression jump_forward;
+      Instruction instr;
+      instr.type = Instruction::SUBROUTINE_JUMP;
+      instr.is_conditional_jump = true;
+      instr.condition = cond;
+      instr.func_call_name = "EOS_JUMP"; //End-Of-Scope
+      jump_forward.instructions.push_back(instr);
+      expr.scope->expressions.push_back(jump_forward);
+   }
    stb_c_lexer_get_token(&lex);
    if (lex.token != '{') {
       compiler_error(std::string("expected token '{' before token '") + token_to_string(lex) + "'", lex);
    }
-   expr.scope->parent = &scope;
+   
    parse_scope(std::string(), *expr.scope, lex, '}');
-   Expression jump_back;
-   Instruction instr;
-   instr.type = Instruction::SUBROUTINE_JUMP;
-   instr.is_conditional_jump = true;
-   instr.condition = cond;
-   instr.func_call_name = "SOS_JUMP"; //Start-Of-Scope
-   jump_back.instructions.push_back(instr);
-   expr.scope->expressions.push_back(jump_back);
+   
    scope.expressions.push_back(expr);
+   {
+      Expression jump_back;
+      Instruction instr;
+      instr.type = Instruction::SUBROUTINE_JUMP;
+      instr.is_conditional_jump = false;
+      instr.condition = cond;
+      instr.func_call_name = "SOS_JUMP"; //End-Of-Scope
+      jump_back.instructions.push_back(instr);
+      expr.scope->expressions.push_back(jump_back);
+   }
 }
 
 static void parse_preincrement(Scope &scope, stb_lexer &lex) {
@@ -202,6 +217,7 @@ static void parse_preincrement(Scope &scope, stb_lexer &lex) {
       if (!var) {
          compiler_error(std::string("use of undeclared identifier '") + token_to_string(lex) + "'", lex);
       } else {
+         printf("Found\n");
          Expression expr;
          expr.scope->parent = &scope;
          Instruction instr;
@@ -209,6 +225,7 @@ static void parse_preincrement(Scope &scope, stb_lexer &lex) {
          instr.lvalue_data = *var;
          expr.instructions.push_back(instr);
          scope.expressions.push_back(expr);
+         printf("Found\n");
       }
    } else {
       compiler_error(std::string("expected an identifier before token '") + token_to_string(lex) + "'", lex);
@@ -218,7 +235,7 @@ static void parse_preincrement(Scope &scope, stb_lexer &lex) {
    if (lex.token != ';') {
       compiler_error(std::string("expected token ';' before token '") + token_to_string(lex) + "'", lex);
    }
-   
+   printf("Found\n");
 }
 
 static void parse_return(Scope &scope, stb_lexer &lex) {
@@ -240,6 +257,7 @@ static void parse_scope(std::string name_str, Scope &scope, stb_lexer &lex, long
       if (lex.token == '*') {
          deref = true;
       } else if (lex.token == CLEX_plusplus) {
+         printf("preinc \n");
          parse_preincrement(scope, lex);
       } else if(lex.token == CLEX_id) {
          std::string name = std::string(lex.string, strlen(lex.string));
@@ -249,6 +267,14 @@ static void parse_scope(std::string name_str, Scope &scope, stb_lexer &lex, long
             if (lex.token == CLEX_dqstring) {
                std::string import_str = std::string(lex.string, strlen(lex.string));
                std::string import_src = load_file(import_str);
+               if (import_src.compare("") == 0) {
+                  import_str = source_file_name.top().substr(0, source_file_name.top().find_last_of('/')) + "/" + import_str;
+                  import_src = load_file(import_str);
+                  if (import_src.compare("") == 0) {
+                     printf("File not found: %s\n", import_str.c_str());
+                     exit(-1);
+                  }
+               }
                source_code_stack.push(import_src);
                source_file_name.push(import_str);
                const char *text = import_src.c_str();
@@ -258,6 +284,17 @@ static void parse_scope(std::string name_str, Scope &scope, stb_lexer &lex, long
                parse_scope(name_str, scope, nlex, CLEX_eof);
                source_code_stack.pop();
                source_file_name.pop();
+               stb_c_lexer_get_token(&lex);
+               if (lex.token != ';') {
+                  compiler_error(std::string("expected token ';' before token '") + token_to_string(lex) + "'", lex);
+               }
+            }
+         } else if (name.compare("cdebug") == 0) {
+            stb_c_lexer_get_token(&lex);
+            if (lex.token == CLEX_dqstring) {
+               std::string pstr = std::string(lex.string, strlen(lex.string));
+               printf(pstr.c_str());
+               printf("\n");
                stb_c_lexer_get_token(&lex);
                if (lex.token != ';') {
                   compiler_error(std::string("expected token ';' before token '") + token_to_string(lex) + "'", lex);
@@ -275,6 +312,8 @@ static void parse_scope(std::string name_str, Scope &scope, stb_lexer &lex, long
                } else {
                   parse_declaration(name, scope, lex);
                }
+            } else {
+               compiler_error(std::string("use of undeclared identifier '") + name + "'", lex);
             }
          } else {
             stb_c_lexer_get_token(&lex);
@@ -314,7 +353,7 @@ static Variable parse_const_assign(Variable dst, Scope &scope, stb_lexer &lex) {
    
    while (lex.token != ';') {
       if (lex.token == CLEX_intlit) {
-         var.ptype = dst.ptype;
+         var.type = dst.type;
          var.pvalue = lex.int_number;
       } else {
       
@@ -355,8 +394,13 @@ static Variable parse_variable(std::string name, Scope &scope, stb_lexer &lex, c
          } else {
             scope.variables.push_back(var);
             push = false;
-            
-            scope.expressions.push_back(parse_expression(name, scope, lex, false));
+            Expression expr;
+            expr.scope->parent = &scope;
+            std::vector<Instruction> instrs = parse_rvalue(var, scope, lex);
+            for (auto &in : instrs) {
+               expr.instructions.push_back(in);
+            }
+            scope.expressions.push_back(expr);
             break;
          }
       }
@@ -374,14 +418,30 @@ static Variable parse_variable(std::string name, Scope &scope, stb_lexer &lex, c
 static std::vector<Instruction> parse_rvalue(Variable dst, Scope &scope, stb_lexer &lex) {
    std::vector<Instruction> instructions;
    stb_c_lexer_get_token(&lex);
+   Instruction::IType itype = Instruction::ASSIGN;
    while (lex.token != ';') {
-      if (lex.token == CLEX_intlit) {
+      if (lex.token == '|') {
+         itype = Instruction::LOG_OR;
+      } else if (lex.token == CLEX_intlit) {
          Instruction in;
-         in.type = Instruction::ASSIGN;
+         in.type = itype;
          in.lvalue_data = dst;
          in.lvalue_data.name = dst.name;
          in.rvalue_data.pvalue = lex.int_number;
          in.rvalue_data.is_type_const = true;
+         instructions.push_back(in);
+         stb_c_lexer_get_token(&lex);
+         break;
+      } else if (lex.token == CLEX_dqstring) {
+         if (itype != Instruction::ASSIGN) {
+            compiler_warning("using string literal for operations other than assignment is undefined.", lex);
+         }
+         Instruction in;
+         in.type = itype;
+         in.lvalue_data = dst;
+         in.lvalue_data.name = dst.name;
+         in.rvalue_data.dqstring = std::string(lex.string, strlen(lex.string));
+         in.rvalue_data.type = Variable::DQString;
          instructions.push_back(in);
          stb_c_lexer_get_token(&lex);
          if (lex.token != ';') {
@@ -403,7 +463,7 @@ static std::vector<Instruction> parse_rvalue(Variable dst, Scope &scope, stb_lex
                   instructions.push_back(in);
                   
                   in = Instruction();
-                  in.type = Instruction::ASSIGN;
+                  in.type = itype;
                   in.lvalue_data = dst;
                   in.rvalue_data.name = std::string("return_reg");
                   
@@ -415,7 +475,7 @@ static std::vector<Instruction> parse_rvalue(Variable dst, Scope &scope, stb_lex
             
          } else {
             Instruction in;
-            in.type = Instruction::ASSIGN;
+            in.type = itype;
             in.lvalue_data = dst;
             in.rvalue_data = *rvar;
             
@@ -467,8 +527,20 @@ static std::vector<Variable> parse_parameter_list(Scope &scope, stb_lexer &lex) 
          if (lex.token != ',' && lex.token != ')') {
             compiler_error(std::string("expected token ',' or ')' before token '") + token_to_string(lex) + "'", lex);
          }
-         
+         //printf("DQString %s\n", var.dqstring.c_str());
          if (lex.token == ')') break;
+      } else if (lex.token == CLEX_floatlit) {
+         Variable var;
+         var.type = Variable::FLOAT_32BIT;
+//         var.ptype = ;
+         //printf("Int param %ld\n", lex.int_number * mul);
+         var.fvalue = lex.real_number;
+         var.is_type_const = true;
+         plist.push_back(var);
+         stb_c_lexer_get_token(&lex);
+         if (lex.token != ',' && lex.token != ')') {
+            compiler_error(std::string("expected token ',' or ')' before token '") + token_to_string(lex) + "'", lex);
+         }
       } else if (lex.token == '-' || lex.token == CLEX_intlit) {
          int mul = 1;
          if (lex.token == '-') {
@@ -478,11 +550,13 @@ static std::vector<Variable> parse_parameter_list(Scope &scope, stb_lexer &lex) 
                compiler_error(std::string("expected int literal before token '") + token_to_string(lex) + "'", lex);
             }
          }
+         //printf("IntLit\n");
          Variable var;
-         var.ptype = Variable::INT_32BIT;
-         printf("Int param %ld\n", lex.int_number * mul);
+         var.type = Variable::INT_32BIT;
+//         var.ptype = ;
+         //printf("Int param %ld\n", lex.int_number * mul);
          var.pvalue = lex.int_number * mul;
-         var.is_ptype_const = true;
+         var.is_type_const = true;
          plist.push_back(var);
          stb_c_lexer_get_token(&lex);
          if (lex.token != ',' && lex.token != ')') {
@@ -652,8 +726,8 @@ static Scope parse(std::string src) {
 static std::string load_file(const std::string pathname) {
    std::ifstream t(pathname);
    if (!t.good()) {
-      printf("File not found: %s\n", pathname.c_str());
-      exit(-1);
+      //printf("File not found: %s\n", pathname.c_str());
+      return "";
    }
    std::string str;
    
@@ -682,7 +756,7 @@ static std::vector<char> load_bin_file(const std::string pathname) {
 #include "Gen_6502.h"
 
 static void generate_6502(Scope &scope, std::ostream &os) {
-   //os << '\t' << "processor 6502" << std::endl;
+   os << '\t' << "processor 6502" << std::endl;
    os << '\t' << "SEG" << std::endl;
    os << '\t' << "ORG $F000" << std::endl;
    Gen_6502 g6502;
@@ -770,6 +844,7 @@ extern "C" {
 
 static std::string output_file;
 bool no_link = false;
+static std::string link_options = "";
 
 void assemble_6502(const char *filename) {
 
@@ -801,10 +876,14 @@ void assemble_386(std::string path_str) {
          output_file = out;
          output_file.replace(output_file.rfind(".o"), 2, "");
       }
-      std::cout << exec(std::string("ld -arch i386 -e _htn_ctr0_OSX_i386_start  -macosx_version_min 10.10 -o ") + output_file + " " + out + " -lc") << std::endl;
-      remove(out.c_str());
+      std::string _static = "";
+      if (link_options.size() == 0) {
+         _static = "-static ";
+      }
+      std::cout << exec(std::string("ld " + _static + "-arch i386 -e _htn_ctr0_OSX_i386_start  -macosx_version_min 10.10 -o ") + output_file + " " + out + " " + link_options) << std::endl;
+      //remove(out.c_str());
    }
-   remove(path_str.c_str());
+   //remove(path_str.c_str());
 }
 
 static void print_usage() {
@@ -838,6 +917,17 @@ int main(int argc, char** argv) {
             break;
          }
          output_file = argv[i];
+      } else if (arch.compare(0, 2, "-l") == 0) {
+         link_options += arch + " ";
+      } else if (arch.compare("-framework") == 0) {
+         link_options += arch + " ";
+         ++i;
+         if (i >= argc) {
+            printf("Not enough args to support -framework\n");
+            break;
+         }
+         std::string fw = argv[i];
+         link_options += fw + " ";
       } else if (arch.rfind("-") == 0) {
          printf("Unrecognized option: %s\n", arch.c_str());
       } else {
@@ -861,7 +951,7 @@ int main(int argc, char** argv) {
    } else {
       generate_6502(scope, ofs);
       ofs.close();
-      assemble_6502(source_path.c_str());
+      //assemble_6502(source_path.c_str());
    }
    
    return 0;

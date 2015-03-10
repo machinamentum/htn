@@ -1,0 +1,13 @@
+
+_open : (path : *char, flags : int, mode : int) -> int {
+   fd : int = 1;
+   __asm__("push @0", mode);
+   __asm__("push @0", flags);
+   __asm__("push @0", path);
+   __asm__("sub $4, %esp");
+   __asm__("mov $5, %eax");
+   __asm__("int $0x80");
+   __asm__("add $16, %esp");
+   __asm__("mov %eax, @0", fd);
+   return fd;
+}

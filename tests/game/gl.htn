@@ -1,0 +1,13 @@
+
+glClearColor : (r : float, g : float, b : float, a : float) -> void;
+glClear : (bitmask : int) -> void;
+glBegin : (mode : int) -> void;
+glEnd : () -> void;
+glVertex3f : (x : float, y : float, z : float) -> void;
+glColor3f : (red : float, green : float, blue : float) -> void;
+glScalef : (x : float, y : float, z : float) -> void;
+glLoadIdentity : () -> void;
+
+GL_COLOR_BUFFER_BIT : const int = 0x00004000;
+
+GL_TRIANGLES : const int = 0x0004;
