@@ -753,20 +753,20 @@ static std::vector<char> load_bin_file(const std::string pathname) {
 
 #include <iostream>
 
-#include "Gen_6502.h"
-
-static void generate_6502(Scope &scope, std::ostream &os) {
-   os << '\t' << "processor 6502" << std::endl;
-   os << '\t' << "SEG" << std::endl;
-   os << '\t' << "ORG $F000" << std::endl;
-   Gen_6502 g6502;
-   g6502.gen_scope(scope, os);
-   os << '\t' << "ORG $FFFA" << std::endl;
-   os << '\t' << ".word main" << std::endl;
-   os << '\t' << ".word main" << std::endl;
-   os << '\t' << ".word main" << std::endl;
-   os << '\t' << "END" << std::endl;
-}
+//#include "Gen_6502.h"
+//
+//static void generate_6502(Scope &scope, std::ostream &os) {
+//   //os << '\t' << "processor 6502" << std::endl;
+//   os << '\t' << "SEG" << std::endl;
+//   os << '\t' << "ORG $F000" << std::endl;
+//   Gen_6502 g6502;
+//   g6502.gen_scope(scope, os);
+//   os << '\t' << "ORG $FFFA" << std::endl;
+//   os << '\t' << ".word main" << std::endl;
+//   os << '\t' << ".word main" << std::endl;
+//   os << '\t' << ".word main" << std::endl;
+//   os << '\t' << "END" << std::endl;
+//}
 
 #include "Gen_386.h"
 
@@ -838,27 +838,23 @@ std::string exec(std::string cmd) {
 }
 
 
-extern "C" {
-   extern int main_asm6(int argc, char **argv);
-};
-
 static std::string output_file;
 bool no_link = false;
 static std::string link_options = "";
 
-void assemble_6502(const char *filename) {
-
-   auto create_str = [](const char *str) {
-      char *out = (char *)malloc(strlen(str) + 1);
-      snprintf(out, strlen(str) + 1, "%s", str);
-      return out;
-   };
-
-   char *args[3];
-   args[1] = create_str("-q");
-   args[2] = create_str(filename);
-   main_asm6(3, args);
-}
+//void assemble_6502(const char *filename) {
+//
+//   auto create_str = [](const char *str) {
+//      char *out = (char *)malloc(strlen(str) + 1);
+//      snprintf(out, strlen(str) + 1, "%s", str);
+//      return out;
+//   };
+//
+//   char *args[3];
+//   args[1] = create_str("-q");
+//   args[2] = create_str(filename);
+//   main_asm6(3, args);
+//}
 
 #include <cstdio>
 
@@ -890,7 +886,7 @@ static void print_usage() {
    printf("Usage: htn [options] <sources> \n");
    printf("\nOptions:\n");
    printf("     -m386      IA-32 executable\n");
-   printf("     -m6502     MOS 6502 flat binary, Atari 2600 flavor\n");
+  // printf("     -m6502     MOS 6502 flat binary, Atari 2600 flavor\n");
    printf("     -o <out>   Specify file for output\n");
    printf("     -c         Stop after compilation, does not invoke linker\n");
 }
@@ -907,7 +903,7 @@ int main(int argc, char** argv) {
       if (arch.compare("-m386") == 0) {
          gen386 = true;
       } else if(arch.compare("-m6502") == 0) {
-         gen386 = false;
+         //gen386 = false;
       } else if (arch.compare("-c") == 0) {
          no_link = true;
       } else if (arch.compare("-o") == 0) {
@@ -949,9 +945,9 @@ int main(int argc, char** argv) {
       ofs.close();
       assemble_386(source_path);
    } else {
-      generate_6502(scope, ofs);
-      ofs.close();
-      //assemble_6502(source_path.c_str());
+//      generate_6502(scope, ofs);
+//      ofs.close();
+//      assemble_6502(source_path.c_str());
    }
    
    return 0;
