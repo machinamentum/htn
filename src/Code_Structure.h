@@ -64,7 +64,7 @@ struct Instruction {
       SUBROUTINE_JUMP, //used mainly for loops
       ASSIGN,
       INCREMENT,
-      LOG_OR
+      BIT_OR
    };
    
    IType type;

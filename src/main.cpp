@@ -56,7 +56,7 @@ static void print_token(stb_lexer *lexer)
 #include <cstdint>
 #include <stack>
 
-#include "Code_Structure.h"
+#include "Code_Gen.h"
 
 Function::
 Function() {
@@ -157,6 +157,7 @@ static Conditional parse_conditional(Scope &scope, stb_lexer &lex) {
    stb_c_lexer_get_token(&lex);
    if (lex.token == CLEX_intlit) {
       Variable var;
+      var.type = Variable::INT_32BIT;
       var.pvalue = lex.int_number;
       var.is_type_const = true;
       cond.right = var;
@@ -293,8 +294,7 @@ static void parse_scope(std::string name_str, Scope &scope, stb_lexer &lex, long
             stb_c_lexer_get_token(&lex);
             if (lex.token == CLEX_dqstring) {
                std::string pstr = std::string(lex.string, strlen(lex.string));
-               printf(pstr.c_str());
-               printf("\n");
+               printf("%s\n", pstr.c_str());
                stb_c_lexer_get_token(&lex);
                if (lex.token != ';') {
                   compiler_error(std::string("expected token ';' before token '") + token_to_string(lex) + "'", lex);
@@ -421,12 +421,13 @@ static std::vector<Instruction> parse_rvalue(Variable dst, Scope &scope, stb_lex
    Instruction::IType itype = Instruction::ASSIGN;
    while (lex.token != ';') {
       if (lex.token == '|') {
-         itype = Instruction::LOG_OR;
+         itype = Instruction::BIT_OR;
       } else if (lex.token == CLEX_intlit) {
          Instruction in;
          in.type = itype;
          in.lvalue_data = dst;
          in.lvalue_data.name = dst.name;
+         in.rvalue_data.type = Variable::INT_32BIT;
          in.rvalue_data.pvalue = lex.int_number;
          in.rvalue_data.is_type_const = true;
          instructions.push_back(in);
@@ -465,7 +466,7 @@ static std::vector<Instruction> parse_rvalue(Variable dst, Scope &scope, stb_lex
                   in = Instruction();
                   in.type = itype;
                   in.lvalue_data = dst;
-                  in.rvalue_data.name = std::string("return_reg");
+                  in.rvalue_data = REG_RETURN;
                   
                   instructions.push_back(in);
                } else {
@@ -777,11 +778,11 @@ static void generate_386(Scope &scope, std::ostream &os) {
    //generate data section
    //os << ".text" << std::endl;
    os << ".section __TEXT,__text,regular,pure_instructions" << std::endl;
-   Gen_386 g386;
-   g386.gen_scope(scope, os);
+   Gen_386 g386 = Gen_386(os);
+   g386.gen_scope(scope);
    
    os << ".section __TEXT,__cstring,cstring_literals" << std::endl;
-   g386.gen_rodata(os);
+   g386.gen_rodata();
 }
 
 #include <fstream>
@@ -876,7 +877,7 @@ void assemble_386(std::string path_str) {
       if (link_options.size() == 0) {
          _static = "-static ";
       }
-      std::cout << exec(std::string("ld " + _static + "-arch i386 -e _htn_ctr0_OSX_i386_start  -macosx_version_min 10.10 -o ") + output_file + " " + out + " " + link_options) << std::endl;
+      std::cout << exec(std::string("ld " + _static + "-arch i386 -e __start  -macosx_version_min 10.10 -o ") + output_file + " " + out + " " + link_options) << std::endl;
       //remove(out.c_str());
    }
    //remove(path_str.c_str());

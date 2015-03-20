@@ -41,11 +41,12 @@ main : () -> int {
    
    glfwDestroyWindow(window);
    glfwTerminate();
+   _exit(0);//hack to exit cleanly as glfw wasnt playing nicely when returning to *_start
    return 0;
 }
 
 
-htn_ctr0_OSX_i386_start :  () -> void {
+_start :  () -> void {
    ret : int = main();
    _exit(ret);
 }

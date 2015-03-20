@@ -35,7 +35,7 @@ main : () -> void {
 }
 
 
-htn_ctr0_OSX_i386_start : plain () -> void {
+__start : plain () -> void {
    __asm__("push %ebp");
    __asm__("mov %esp, %ebp");
    main();
