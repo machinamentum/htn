@@ -1,0 +1,11 @@
+
+_open : (path : *char, flags : int, mode : int) -> int {
+   fd : int = 1;
+   __asm__("mov @0, %ebx", path);
+   __asm__("mov @0, %ecx", flags);
+   __asm__("mov @0, %edx", mode);
+   __asm__("mov $5, %eax");
+   __asm__("int $0x80");
+   __asm__("mov %eax, @0", fd);
+   return fd;
+}

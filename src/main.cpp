@@ -3,6 +3,7 @@
 
 
 #include <cstdio>
+#include <cstring>
 
 static void print_token(stb_lexer *lexer)
 {
@@ -777,11 +778,20 @@ static void generate_386(Scope &scope, std::ostream &os) {
    //os << ".data" << std::endl;
    //generate data section
    //os << ".text" << std::endl;
+#ifdef __APPLE__
    os << ".section __TEXT,__text,regular,pure_instructions" << std::endl;
+#else
+   // ELF. TODO: Windows PE?
+   os << ".text" << std::endl;
+#endif
    Gen_386 g386 = Gen_386(os);
    g386.gen_scope(scope);
    
+#ifdef __APPLE__
    os << ".section __TEXT,__cstring,cstring_literals" << std::endl;
+#else
+   os << ".section .rodata" << std::endl;
+#endif
    g386.gen_rodata();
 }
 
@@ -866,9 +876,17 @@ void assemble_386(std::string path_str) {
       if (output_file.compare("") == 0) {
          output_file = out;
       }
+#ifdef __APPLE__
       std::cout << exec(std::string("as -arch i386 -g -Q -o ") + output_file + " " + path_str) << std::endl;
+#else
+      std::cout << exec(std::string("as --32 -g -o ") + output_file + " " + path_str) << std::endl;
+#endif
    } else {
+#ifdef __APPLE__
       std::cout << exec(std::string("as -arch i386 -g -Q -o ") + out + " " + path_str) << std::endl;
+#else
+      std::cout << exec(std::string("as --32 -g -o ") + out + " " + path_str) << std::endl;
+#endif
       if (output_file.compare("") == 0) {
          output_file = out;
          output_file.replace(output_file.rfind(".o"), 2, "");
@@ -877,7 +895,12 @@ void assemble_386(std::string path_str) {
       if (link_options.size() == 0) {
          _static = "-static ";
       }
+#ifdef __APPLE__
       std::cout << exec(std::string("ld " + _static + "-arch i386 -e __start  -macosx_version_min 10.10 -o ") + output_file + " " + out + " " + link_options) << std::endl;
+#else
+      std::cout << exec(std::string("ld " + _static + "-m elf_i386 -e __start -o ") + output_file + " " + out + " " + link_options) << std::endl;
+      // FIXME: don't hardcode the machine type
+#endif
       //remove(out.c_str());
    }
    //remove(path_str.c_str());
