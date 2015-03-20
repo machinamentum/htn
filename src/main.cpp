@@ -898,7 +898,8 @@ void assemble_386(std::string path_str) {
 #ifdef __APPLE__
       std::cout << exec(std::string("ld " + _static + "-arch i386 -e __start  -macosx_version_min 10.10 -o ") + output_file + " " + out + " " + link_options) << std::endl;
 #else
-      std::cout << exec(std::string("ld " + _static + "-arch i386 -e __start -o ") + output_file + " " + out + " " + link_options) << std::endl;
+      std::cout << exec(std::string("ld " + _static + "-m elf_i386 -e __start -o ") + output_file + " " + out + " " + link_options) << std::endl;
+      // FIXME: don't hardcode the machine type
 #endif
       //remove(out.c_str());
    }
