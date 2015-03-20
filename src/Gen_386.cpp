@@ -41,6 +41,9 @@ std::string  Gen_386::gen_var(Variable var) {
       float val = var.fvalue;
       return std::string("$") + std::to_string(*(int *)&val);
    } else if (var.type == Variable::DQString) {
+      emit_call(get_new_label());
+      os << get_old_label() << ":" << std::endl;
+      emit_pop(REG_INDEX);
       os << '\t' << "lea " << get_rodata(var) << " - " << get_old_label() << "(%ecx), %eax" << std::endl;
       return gen_var(REG_ACCUMULATOR);
    } else {

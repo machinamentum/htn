@@ -1,0 +1,13 @@
+
+exit : (val : int) -> void;
+printf : (str : *char) -> void;
+
+main : () -> int {
+   printf("Hello World\n");
+   return 0;
+}
+
+_start : () -> void {
+   ret : int = main();
+   exit(ret);
+}

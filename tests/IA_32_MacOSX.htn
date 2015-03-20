@@ -35,7 +35,7 @@ main : () -> void {
 }
 
 
-__start : plain () -> void {
+_start : plain () -> void {
    __asm__("push %ebp");
    __asm__("mov %esp, %ebp");
    main();

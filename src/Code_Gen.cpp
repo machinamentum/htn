@@ -36,18 +36,6 @@ gen_func_params(std::vector<Variable> &plist) {
    if (plist.size() == 0) stack_align = 0;
 //   printf("plist size: %ld\n", plist.size());
 //   printf("stack_align: %ld\n", stack_align);
-   for (int i = 0; i < plist.size(); ++i) {
-      if (plist[i].type == Variable::DQString || (plist[i].type == Variable::POINTER && plist[i].ptype == Variable::CHAR)) {
-         std::string l0pbn = get_new_label();
-         //os << '\t' << "call " << l0pbn << std::endl;
-         emit_call(l0pbn);
-         os << l0pbn << ":" << std::endl;
-         
-         emit_pop(REG_INDEX);
-      }
-   }
-   
-//   printf("stack_align %d\n", stack_align);
 
    emit_sub(create_const_int32(stack_align), REG_STACK);
    int adj = stack_align;
