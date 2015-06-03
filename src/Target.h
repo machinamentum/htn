@@ -15,5 +15,6 @@ struct Target {
 };
 
 #include "Target_GNU.h"
+#include "Target_Apple.h"
 
 #endif

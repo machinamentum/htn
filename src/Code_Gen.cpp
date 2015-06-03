@@ -177,7 +177,7 @@ gen_function(Function &func) {
 
 
       if (!func.should_inline && !func.is_not_definition) {
-         os << ".global " << func.name << std::endl;
+         os << ".globl " << func.name << std::endl;
          os << "" << func.name << ":" << std::endl;
          if (!func.plain_instructions) {
             emit_function_header();

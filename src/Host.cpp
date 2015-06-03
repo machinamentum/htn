@@ -8,7 +8,17 @@
 //depending on the target.
 
 #if defined(__APPLE__) && defined(__clang__)
-//TODO apple stuff
+std::string Host::i386_assembler_ops() {
+   return std::string("");
+}
+
+std::string Host::i386_arch_flag() {
+   return " -arch i386 ";
+}
+
+std::string Host::link_ops() {
+   return " -arch i386 -macosx_version_min 10.10 -e _start ";
+}
 #else
 std::string Host::i386_assembler_ops() {
    return std::string("");

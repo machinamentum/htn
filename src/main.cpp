@@ -776,7 +776,11 @@ static std::vector<char> load_bin_file(const std::string pathname) {
 #include "Gen_386.h"
 #include "Target.h"
 
+#if defined(__APPLE__) && defined(__clang__)
+Target *target = new Target_Apple();
+#else
 Target *target = new Target_GNU();
+#endif
 
 static void generate_386(Scope &scope, std::ostream &os) {
    //os << ".intel_syntax" << std::endl;
