@@ -3,6 +3,7 @@
 #---------------------------------------------------------------------------------
 
 TOPDIR ?= $(CURDIR)
+HTN	:= $(TOPDIR)/htn
 
 #---------------------------------------------------------------------------------
 # TARGET is the name of the output
@@ -11,33 +12,16 @@ TOPDIR ?= $(CURDIR)
 # DATA is a list of directories containing data files
 # INCLUDES is a list of directories containing header files
 #---------------------------------------------------------------------------------
-TARGET		:=	$(notdir $(CURDIR))
+TARGET		:=	libh.a
 BUILD		:=	build
-SOURCES		:=	source src
+SOURCES		:=	.
 DATA		:=
 INCLUDES	:=	include
 
 #---------------------------------------------------------------------------------
 # options for code generation
 #---------------------------------------------------------------------------------
-ARCH	:=
-
-CFLAGS	:=	 -g -Wall -Wno-missing-braces -O2 -fomit-frame-pointer -ffast-math $(ARCH)
-
-CFLAGS	+=	 $(INCLUDE)
-
-CXXFLAGS	:= -std=c++11 $(CFLAGS) -fno-rtti -fno-exceptions
-
-ASFLAGS	:=	-g $(ARCH)
-LDFLAGS	= 	-g $(ARCH)
-
-LIBS	:=
-
-#---------------------------------------------------------------------------------
-# list of directories containing libraries, this must be the top level containing
-# include and lib
-#---------------------------------------------------------------------------------
-LIBDIRS	:=
+HFLAGS	:=
 
 
 #---------------------------------------------------------------------------------
@@ -55,10 +39,7 @@ export VPATH	:=	$(foreach dir,$(SOURCES),$(CURDIR)/$(dir)) \
 
 export DEPSDIR	:=	$(CURDIR)/$(BUILD)
 
-CFILES		:=	$(foreach dir,$(SOURCES),$(notdir $(wildcard $(dir)/*.c)))
-CPPFILES	:=	$(foreach dir,$(SOURCES),$(notdir $(wildcard $(dir)/*.cpp)))
-SFILES		:=	$(foreach dir,$(SOURCES),$(notdir $(wildcard $(dir)/*.s)))
-BINFILES	:=	$(foreach dir,$(DATA),$(notdir $(wildcard $(dir)/*.*)))
+HTNFILES		:=	$(foreach dir,$(SOURCES),$(notdir $(wildcard $(dir)/*.htn)))
 
 #---------------------------------------------------------------------------------
 # use CXX for linking C++ projects, CC for standard C
@@ -75,7 +56,7 @@ endif
 #---------------------------------------------------------------------------------
 
 export OFILES	:=	$(addsuffix .o,$(BINFILES)) \
-			$(CPPFILES:.cpp=.o) $(CFILES:.c=.o) $(SFILES:.s=.o)
+			$(CPPFILES:.cpp=.o) $(CFILES:.c=.o) $(SFILES:.s=.o) $(HTNFILES:.htn=.o)
 
 export INCLUDE	:=	$(foreach dir,$(INCLUDES),-I$(CURDIR)/$(dir)) \
 			$(foreach dir,$(LIBDIRS),-I$(dir)/include) \
@@ -87,11 +68,7 @@ export LIBPATHS	:=	$(foreach dir,$(LIBDIRS),-L$(dir)/lib)
 .PHONY: $(BUILD) clean all run
 
 #---------------------------------------------------------------------------------
-all: $(BUILD) libhtn
-
-libhtn:
-	cd platform ; \
-	make TOPDIR=$(TOPDIR)
+all: $(BUILD)
 
 $(BUILD):
 	@[ -d $@ ] || mkdir -p $@
@@ -100,12 +77,9 @@ $(BUILD):
 #---------------------------------------------------------------------------------
 clean:
 	@echo clean ...
-	@rm -fr $(BUILD) $(TARGET) $(TARGET).elf
-	cd platform ; make clean
+	@rm -fr $(BUILD) $(TARGET)
 
 
-run:
-	./$(TARGET)
 
 #---------------------------------------------------------------------------------
 else
@@ -116,14 +90,13 @@ DEPENDS	:=	$(OFILES:.o=.d)
 # main targets
 #---------------------------------------------------------------------------------
 
-%.o	:	%.c
-	$(CC) $(CFLAGS) -c -o $@ $^
 
-%.o	:	%.cpp
-	$(CXX) $(CXXFLAGS) -c -o $@ $^
+
+%.o	:	%.htn
+	$(HTN) $(HFLAGS) -c -o $@ $^
 
 $(OUTPUT)	:	$(OFILES)
-	$(LD) $(LDFLAGS) -o $@ $^ $(LIBS)
+	$(AR) rcs $@ $^
 
 #---------------------------------------------------------------------------------
 # you need a rule like this for each extension you use as binary data

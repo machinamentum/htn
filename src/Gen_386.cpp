@@ -4,7 +4,7 @@ const Variable REG_EBP = create_register("_REG_EBP");
 
 void Gen_386::
 gen_rodata() {
-   for (int i = 0; i < rodata_data.size(); i++) {
+   for (size_t i = 0; i < rodata_data.size(); i++) {
       os << rodata_labels[i] << ":" << std::endl;
       Variable *var = &rodata_data[i];
       if (var->type == Variable::DQString) {

@@ -55,6 +55,7 @@ static void print_token(stb_lexer *lexer)
 #include <vector>
 #include <cstdint>
 #include <stack>
+#include <cstring>
 
 #include "Code_Gen.h"
 
@@ -128,6 +129,7 @@ std::string token_to_string(stb_lexer &lex) {
          }
          break;
    }
+   return std::string("???ERR???");
 }
 
 static Conditional parse_conditional(Scope &scope, stb_lexer &lex) {
@@ -153,7 +155,7 @@ static Conditional parse_conditional(Scope &scope, stb_lexer &lex) {
    if (lex.token == '<') {
       cond.condition = Conditional::LESS_THAN;
    }
-   
+
    stb_c_lexer_get_token(&lex);
    if (lex.token == CLEX_intlit) {
       Variable var;
@@ -162,12 +164,12 @@ static Conditional parse_conditional(Scope &scope, stb_lexer &lex) {
       var.is_type_const = true;
       cond.right = var;
    }
-   
+
    stb_c_lexer_get_token(&lex);
    if (lex.token != ')') {
       compiler_error(std::string("expected token ')' before token '") + token_to_string(lex) + "'", lex);
    }
-   
+
    return cond;
 }
 
@@ -176,7 +178,7 @@ static void parse_while_loop(Scope &scope, stb_lexer &lex) {
    if (lex.token != '(') {
        compiler_error(std::string("expected token '(' before token '") + token_to_string(lex) + "'", lex);
    }
-   
+
    Expression expr;
    expr.scope->parent = &scope;
    Conditional cond = parse_conditional(scope, lex);
@@ -194,9 +196,9 @@ static void parse_while_loop(Scope &scope, stb_lexer &lex) {
    if (lex.token != '{') {
       compiler_error(std::string("expected token '{' before token '") + token_to_string(lex) + "'", lex);
    }
-   
+
    parse_scope(std::string(), *expr.scope, lex, '}');
-   
+
    scope.expressions.push_back(expr);
    {
       Expression jump_back;
@@ -231,7 +233,7 @@ static void parse_preincrement(Scope &scope, stb_lexer &lex) {
    } else {
       compiler_error(std::string("expected an identifier before token '") + token_to_string(lex) + "'", lex);
    }
-   
+
    stb_c_lexer_get_token(&lex);
    if (lex.token != ';') {
       compiler_error(std::string("expected token ';' before token '") + token_to_string(lex) + "'", lex);
@@ -241,9 +243,9 @@ static void parse_preincrement(Scope &scope, stb_lexer &lex) {
 
 static void parse_return(Scope &scope, stb_lexer &lex) {
    //stb_c_lexer_get_token(&lex);
-   
+
    Expression expr = parse_expression("return", scope, lex, false);
-   
+
    scope.expressions.push_back(expr);
 }
 
@@ -262,7 +264,7 @@ static void parse_scope(std::string name_str, Scope &scope, stb_lexer &lex, long
          parse_preincrement(scope, lex);
       } else if(lex.token == CLEX_id) {
          std::string name = std::string(lex.string, strlen(lex.string));
-         
+
          if (name.compare("import") == 0) {
             stb_c_lexer_get_token(&lex);
             if (lex.token == CLEX_dqstring) {
@@ -346,22 +348,24 @@ static Variable::VType get_vtype(std::string t) {
    } else if (t.compare("big") == 0) {
       return Variable::INT_64BIT;
    }
+
+   return Variable::UNKNOWN;
 }
 
 static Variable parse_const_assign(Variable dst, Scope &scope, stb_lexer &lex) {
    Variable var;
-   
+
    while (lex.token != ';') {
       if (lex.token == CLEX_intlit) {
          var.type = dst.type;
          var.pvalue = lex.int_number;
       } else {
-      
+
       }
-      
+
       stb_c_lexer_get_token(&lex);
    }
-   
+
    return var;
 }
 
@@ -407,11 +411,11 @@ static Variable parse_variable(std::string name, Scope &scope, stb_lexer &lex, c
       if (lex.token == opt_delim_token) break;
       stb_c_lexer_get_token(&lex);
    }
-   
+
    if (push) {
       scope.variables.push_back(var);
    }
-   
+
    return var;
 }
 
@@ -462,30 +466,30 @@ static std::vector<Instruction> parse_rvalue(Variable dst, Scope &scope, stb_lex
                   in.func_call_name = name;
                   in.call_target_params = parse_parameter_list(scope, lex);
                   instructions.push_back(in);
-                  
+
                   in = Instruction();
                   in.type = itype;
                   in.lvalue_data = dst;
                   in.rvalue_data = REG_RETURN;
-                  
+
                   instructions.push_back(in);
                } else {
                   compiler_error(std::string("use of undeclared identifier '") + token_to_string(lex) + "'", lex);
                }
             }
-            
+
          } else {
             Instruction in;
             in.type = itype;
             in.lvalue_data = dst;
             in.rvalue_data = *rvar;
-            
+
             instructions.push_back(in);
          }
       }
       stb_c_lexer_get_token(&lex);
    }
-   
+
    return instructions;
 }
 
@@ -516,7 +520,7 @@ static void parse_declaration(std::string name, Scope &scope, stb_lexer &lex) {
 static std::vector<Variable> parse_parameter_list(Scope &scope, stb_lexer &lex) {
    //stb_c_lexer_get_token(&lex);
    std::vector<Variable> plist;
-   
+
    while (lex.token != ')') {
 //      print_token(&lex);
       if (lex.token == CLEX_dqstring) {
@@ -573,7 +577,7 @@ static std::vector<Variable> parse_parameter_list(Scope &scope, stb_lexer &lex) 
             continue;
          } else {
             Variable *var_ref = scope.getVarByName(name);
-            
+
             if (var_ref) {
                plist.push_back(*var_ref);
             } else {
@@ -584,7 +588,7 @@ static std::vector<Variable> parse_parameter_list(Scope &scope, stb_lexer &lex) 
       if (lex.token == ')') break;
       stb_c_lexer_get_token(&lex);
    }
-   
+
    return plist;
 }
 
@@ -598,7 +602,7 @@ static void parse_function(std::string name, Scope &scope, stb_lexer &lex, bool 
    if (lex.token != ')') {
       func.parameters = parse_parameter_list(*func.scope, lex);
    }
-   
+
    stb_c_lexer_get_token(&lex);
    if (lex.token != CLEX_arrow) {
       compiler_error(std::string("expected token '->' before token '") + token_to_string(lex) + "'", lex);
@@ -623,7 +627,7 @@ static void parse_function(std::string name, Scope &scope, stb_lexer &lex, bool 
          compiler_error(std::string("unexpected token '") + token_to_string(lex)+ "'", lex);
       }
    }
-   
+
    parse_scope(name, *func.scope, lex, '}');
    scope.functions.push_back(func);
 }
@@ -634,7 +638,7 @@ static void parse_function(std::string name, Scope &scope, stb_lexer &lex, bool 
 static Expression parse_expression(std::string name, Scope &scope, stb_lexer &lex, bool deref) {
    Expression expr;
    expr.scope->parent = &scope;
-   
+
    if (lex.token == '(') {
       Function *tfunc = scope.getFuncByName(name);
       if (tfunc) {
@@ -652,7 +656,7 @@ static Expression parse_expression(std::string name, Scope &scope, stb_lexer &le
             instr.type = Instruction::FUNC_CALL;
             instr.func_call_name = name;
             instr.call_target_params = parse_parameter_list(scope, lex);
-            
+
             stb_c_lexer_get_token(&lex);
             if (lex.token != ';') {
                compiler_error(std::string("expected token ';' before token '") + token_to_string(lex) + "'", lex);
@@ -686,7 +690,7 @@ static Expression parse_expression(std::string name, Scope &scope, stb_lexer &le
       } else {
          compiler_error("Error: undefined reference to " + name, lex);
       }
-      
+
       std::vector<Instruction> instrs = parse_rvalue(instr.lvalue_data, scope, lex);
       //stb_c_lexer_get_token(&lex);
       if (lex.token != ';') {
@@ -703,7 +707,7 @@ static Expression parse_expression(std::string name, Scope &scope, stb_lexer &le
 static Function asmInlineFunc() {
    Function func;
    func.name = "__asm__";
-   
+
    Variable dqs;
    dqs.type = Variable::DQString;
    func.parameters.push_back(dqs);
@@ -731,11 +735,11 @@ static std::string load_file(const std::string pathname) {
       return "";
    }
    std::string str;
-   
+
    t.seekg(0, std::ios::end);
    str.reserve(t.tellg());
    t.seekg(0, std::ios::beg);
-   
+
    str.assign((std::istreambuf_iterator<char>(t)), std::istreambuf_iterator<char>());
    return str;
 }
@@ -743,11 +747,11 @@ static std::string load_file(const std::string pathname) {
 static std::vector<char> load_bin_file(const std::string pathname) {
    std::ifstream t(pathname);
    std::vector<char> str;
-   
+
    t.seekg(0, std::ios::end);
    str.reserve(t.tellg());
    t.seekg(0, std::ios::beg);
-   
+
    str.assign((std::istreambuf_iterator<char>(t)), std::istreambuf_iterator<char>());
    return str;
 }
@@ -770,6 +774,9 @@ static std::vector<char> load_bin_file(const std::string pathname) {
 //}
 
 #include "Gen_386.h"
+#include "Target.h"
+
+Target *target = new Target_GNU();
 
 static void generate_386(Scope &scope, std::ostream &os) {
    //os << ".intel_syntax" << std::endl;
@@ -777,11 +784,14 @@ static void generate_386(Scope &scope, std::ostream &os) {
    //os << ".data" << std::endl;
    //generate data section
    //os << ".text" << std::endl;
-   os << ".section __TEXT,__text,regular,pure_instructions" << std::endl;
+   //os << ".section __TEXT,__text,regular,pure_instructions" << std::endl;
+   os << target->as_text_section() << std::endl;
    Gen_386 g386 = Gen_386(os);
    g386.gen_scope(scope);
-   
-   os << ".section __TEXT,__cstring,cstring_literals" << std::endl;
+
+   //os << ".section __TEXT,__cstring,cstring_literals" << std::endl;
+
+   os << target->as_rodata_section() << std::endl;
    g386.gen_rodata();
 }
 
@@ -802,7 +812,7 @@ static void print_line_with_arrow(int line_number, int offset) {
    for (int i = 0; i < offset; i++) {
       std::cout << " ";
    }
-   
+
    std::cout << "^" << std::endl;
 }
 
@@ -842,7 +852,7 @@ std::string exec(std::string cmd) {
 static std::string output_file;
 bool no_link = false;
 static std::string link_options = "";
-
+bool no_del_s = false;
 //void assemble_6502(const char *filename) {
 //
 //   auto create_str = [](const char *str) {
@@ -858,6 +868,7 @@ static std::string link_options = "";
 //}
 
 #include <cstdio>
+#include "Host.h"
 
 void assemble_386(std::string path_str) {
    std::string out(path_str);
@@ -866,9 +877,9 @@ void assemble_386(std::string path_str) {
       if (output_file.compare("") == 0) {
          output_file = out;
       }
-      std::cout << exec(std::string("as -arch i386 -g -Q -o ") + output_file + " " + path_str) << std::endl;
+      std::cout << exec(std::string("as " + Host::i386_arch_flag() + " -Q -g -o ") + output_file + " " + path_str) << std::endl;
    } else {
-      std::cout << exec(std::string("as -arch i386 -g -Q -o ") + out + " " + path_str) << std::endl;
+      std::cout << exec(std::string("as " + Host::i386_arch_flag() + " -Q -g -o ") + out + " " + path_str) << std::endl;
       if (output_file.compare("") == 0) {
          output_file = out;
          output_file.replace(output_file.rfind(".o"), 2, "");
@@ -877,10 +888,12 @@ void assemble_386(std::string path_str) {
       if (link_options.size() == 0) {
          _static = "-static ";
       }
-      std::cout << exec(std::string("ld " + _static + "-arch i386 -e __start  -macosx_version_min 10.10 -o ") + output_file + " " + out + " " + link_options) << std::endl;
-      //remove(out.c_str());
+      std::cout << exec(std::string("ld " + _static + Host::link_ops()  +  " " + " -o ") + output_file + " " + out + " " + link_options) << std::endl;
+      remove(out.c_str());
    }
-   //remove(path_str.c_str());
+   if (!no_del_s) {
+      remove(path_str.c_str());
+   }
 }
 
 static void print_usage() {
@@ -907,6 +920,8 @@ int main(int argc, char** argv) {
          //gen386 = false;
       } else if (arch.compare("-c") == 0) {
          no_link = true;
+      } else if (arch.compare("-S") == 0) {
+         no_del_s = true;
       } else if (arch.compare("-o") == 0) {
          ++i;
          if (i >= argc) {
@@ -927,11 +942,13 @@ int main(int argc, char** argv) {
          link_options += fw + " ";
       } else if (arch.rfind("-") == 0) {
          printf("Unrecognized option: %s\n", arch.c_str());
-      } else {
+      } else if (arch.find(".a") != std::string::npos) {
+         link_options += arch + " ";
+      }else {
          source_path = argv[i];
       }
    }
-   
+
    std::string source = load_file(source_path);
    source_file_name.push(source_path);
    Scope scope = parse(source);
@@ -950,8 +967,6 @@ int main(int argc, char** argv) {
 //      ofs.close();
 //      assemble_6502(source_path.c_str());
    }
-   
+
    return 0;
 }
-
-

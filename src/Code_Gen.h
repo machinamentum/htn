@@ -41,7 +41,7 @@ struct StackMan {
       }
    
       int stack_loc = 0;
-      for (int i = 0; i < params.size(); ++i) {
+      for (size_t i = 0; i < params.size(); ++i) {
          if (params[i].name.compare(var.name) == 0) {
             stack_loc = i * 4 + 8;// +8 accounts for push %ebp and 4 byte return address
             return std::to_string(stack_loc) + "(%ebp)";
@@ -51,7 +51,7 @@ struct StackMan {
       
       if (scope && !ts) {
 
-         for (int i = 0; i < scope->variables.size(); ++i) {
+         for (size_t i = 0; i < scope->variables.size(); ++i) {
 
             if (scope->variables[i].name.compare(var.name) == 0) {
                int padding = 16 - ((scope->variables.size() * 4) % 16);
@@ -62,7 +62,7 @@ struct StackMan {
          }
       } else if (ts) {
          printf("TS\n");
-         for (int i = 0; i < ts->variables.size(); ++i) {
+         for (size_t i = 0; i < ts->variables.size(); ++i) {
 
             if (ts->variables[i].name.compare(var.name) == 0) {
                int padding = 16 - ((ts->variables.size() * 4) % 16);
@@ -92,7 +92,7 @@ struct StackMan {
 struct Var_Man {
    
    std::string get_var(Variable var) {
-   
+   	return std::string();//TODO implement
    }
    
 };

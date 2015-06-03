@@ -46,7 +46,7 @@ gen_func_params(std::vector<Variable> &plist) {
       adj += 4;
       stack_man.ext_adj = adj;
    }
-   
+
    stack_man.ext_adj = 0;
 }
 
@@ -56,7 +56,7 @@ int unwind_stack_variables(Scope &scope) {
    int padding = 16 - ((scope.variables.size() * 4) % 16);
    if (padding == 16) padding = 0;
    int stack_adj = scope.variables.size() * 4 + padding;
-   
+
    if (scope.variables.size() == 0) {
       stack_adj = 0;
    }
@@ -81,20 +81,20 @@ gen_expression(std::string scope_name, Expression &expr) {
          } break;
          case Instruction::SUBROUTINE_JUMP: {
             std::string label = instr.func_call_name;
-            
+
             if (label.compare("SOS_JUMP") == 0) {
                label = scope_name;
             } else if (label.compare("EOS_JUMP") == 0) {
                label = scope_name + "_end";
             }
-            
+
             if (instr.is_conditional_jump && !instr.condition.is_always_true) {
                emit_cmp(instr.condition.right, instr.condition.left);
                emit_cond_jump(label, instr.condition.condition);
             } else {
                emit_jump(label);
             }
-            
+
          } break;
          case Instruction::FUNC_CALL: {
             if (instr.func_call_name.compare("__asm__") == 0) {
@@ -103,7 +103,7 @@ gen_expression(std::string scope_name, Expression &expr) {
                }
                std::string final = instr.call_target_params[0].dqstring;
                while (final.find_first_of("@") != std::string::npos) {
-                  
+
                   if (final.find_first_of("@0") != std::string::npos) {
                      std::string load_from_stack = stack_man.load_var(instr.call_target_params[1]);
                      final.replace(final.find_first_of("@0"), 2, load_from_stack);
@@ -122,7 +122,7 @@ gen_expression(std::string scope_name, Expression &expr) {
                      gen_func_params(instr.call_target_params);
                   }
 
-                  emit_call("_" + cfunc->name);
+                  emit_call("" + cfunc->name);
                   std::vector<Variable> plist = instr.call_target_params;
                   unsigned int stack_align = (16 - (plist.size() * 4));
                   stack_align += plist.size() * 4;
@@ -150,7 +150,7 @@ gen_expression(std::string scope_name, Expression &expr) {
             }
          } break;
       }
-      
+
       prevInstr = instr;
    }
 }
@@ -174,11 +174,11 @@ void Code_Gen::
 gen_function(Function &func) {
    stack_man.params = func.parameters;
    if (func.name.compare("__asm__") != 0) {
-      
+
 
       if (!func.should_inline && !func.is_not_definition) {
-         os << ".globl _" << func.name << std::endl;
-         os << "_" << func.name << ":" << std::endl;
+         os << ".global " << func.name << std::endl;
+         os << "" << func.name << ":" << std::endl;
          if (!func.plain_instructions) {
             emit_function_header();
          }
@@ -191,7 +191,7 @@ gen_function(Function &func) {
 
             emit_sub(create_const_int32(stack_adj), REG_STACK);
          }
-         gen_scope_expressions("_" + func.name, *func.scope);
+         gen_scope_expressions("" + func.name, *func.scope);
          if (func.scope->variables.size() > 0) {
             emit_add(create_const_int32(stack_adj), REG_STACK);
          }
@@ -235,5 +235,3 @@ gen_scope(Scope &scope) {
       gen_function(func);
    }
 }
-
-

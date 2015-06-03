@@ -17,7 +17,8 @@ struct Variable {
       INT_64BIT,
       FLOAT_32BIT,
       POINTER,
-      DEREFERENCED_POINTER
+      DEREFERENCED_POINTER,
+      UNKNOWN
    };
    
    std::string name;

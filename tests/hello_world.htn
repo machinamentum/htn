@@ -1,13 +1,14 @@
 
-exit : (val : int) -> void;
-printf : (str : *char) -> void;
+_exit : (val : int) -> void;
+_write : (fd : int, str : *char, len : int) -> void;
+
 
 main : () -> int {
-   printf("Hello World\n");
+   _write(1, "Hello World\n", 12);
    return 0;
 }
 
 _start : () -> void {
    ret : int = main();
-   exit(ret);
+   _exit(ret);
 }
