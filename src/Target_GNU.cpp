@@ -14,3 +14,15 @@ std::string Target_GNU::as_text_section() {
 std::string Target_GNU::as_rodata_section() {
    return ".section .rodata";
 }
+
+std::string Target_GNU::assembler_ops() {
+   return std::string("");
+}
+
+std::string Target_GNU::arch_flag() {
+   return " --32 ";
+}
+
+std::string Target_GNU::link_ops() {
+   return " -m elf_i386 ";
+}

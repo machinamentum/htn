@@ -869,7 +869,6 @@ bool no_del_s = false;
 //}
 
 #include <cstdio>
-#include "Host.h"
 
 void assemble_386(std::string path_str) {
    std::string out(path_str);
@@ -878,9 +877,9 @@ void assemble_386(std::string path_str) {
       if (output_file.compare("") == 0) {
          output_file = out;
       }
-      std::cout << exec(std::string(target->get_default_as() + Host::i386_arch_flag() + " -g -o ") + output_file + " " + path_str) << std::endl;
+      std::cout << exec(std::string(target->get_default_as() + target->arch_flag() + " -g -o ") + output_file + " " + path_str) << std::endl;
    } else {
-      std::cout << exec(std::string(target->get_default_as() + Host::i386_arch_flag() + " -g -o ") + out + " " + path_str) << std::endl;
+      std::cout << exec(std::string(target->get_default_as() + target->arch_flag() + " -g -o ") + out + " " + path_str) << std::endl;
       if (output_file.compare("") == 0) {
          output_file = out;
          output_file.replace(output_file.rfind(".o"), 2, "");
@@ -889,7 +888,7 @@ void assemble_386(std::string path_str) {
       if (link_options.size() == 0) {
          _static = "-static ";
       }
-      std::cout << exec(std::string("ld " + _static + Host::link_ops()  +  " " + " -o ") + output_file + " " + out + " " + link_options) << std::endl;
+      std::cout << exec(std::string("ld " + _static + target->link_ops()  +  " " + " -o ") + output_file + " " + out + " " + link_options) << std::endl;
       remove(out.c_str());
    }
    if (!no_del_s) {

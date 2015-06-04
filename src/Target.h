@@ -14,6 +14,9 @@ struct Target {
 
    virtual std::string as_text_section();
    virtual std::string as_rodata_section();
+   virtual std::string assembler_ops();
+   virtual std::string arch_flag();
+   virtual std::string link_ops();
 
    std::string get_default_as() {
       if (default_target.size() == 0) return "as"; //system asembler
