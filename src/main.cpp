@@ -775,12 +775,9 @@ static std::vector<char> load_bin_file(const std::string pathname) {
 
 #include "Gen_386.h"
 #include "Target.h"
+#include "common.h"
 
-#if defined(__APPLE__) && defined(__clang__)
-Target *target = new Target_Apple();
-#else
-Target *target = new Target_GNU();
-#endif
+Target *target = NULL;
 
 static void generate_386(Scope &scope, std::ostream &os) {
    //os << ".intel_syntax" << std::endl;
@@ -881,9 +878,9 @@ void assemble_386(std::string path_str) {
       if (output_file.compare("") == 0) {
          output_file = out;
       }
-      std::cout << exec(std::string("as " + Host::i386_arch_flag() + " -Q -g -o ") + output_file + " " + path_str) << std::endl;
+      std::cout << exec(std::string(target->get_default_as() + Host::i386_arch_flag() + " -g -o ") + output_file + " " + path_str) << std::endl;
    } else {
-      std::cout << exec(std::string("as " + Host::i386_arch_flag() + " -Q -g -o ") + out + " " + path_str) << std::endl;
+      std::cout << exec(std::string(target->get_default_as() + Host::i386_arch_flag() + " -g -o ") + out + " " + path_str) << std::endl;
       if (output_file.compare("") == 0) {
          output_file = out;
          output_file.replace(output_file.rfind(".o"), 2, "");
@@ -914,6 +911,9 @@ int main(int argc, char** argv) {
       print_usage();
       return 0;
    }
+
+   std::string def_tar = STRING(DEFAULT_TARGET);
+
    bool gen386 = true;
    std::string source_path;
    for (int i = 1; i < argc; ++i) {
@@ -933,6 +933,13 @@ int main(int argc, char** argv) {
             break;
          }
          output_file = argv[i];
+      } else if (arch.compare("--target") == 0) {
+         ++i;
+         if (i >= argc) {
+            printf("Not enough args to support --target\n");
+            break;
+         }
+         def_tar = argv[i];
       } else if (arch.compare(0, 2, "-l") == 0) {
          link_options += arch + " ";
       } else if (arch.compare("-framework") == 0) {
@@ -951,6 +958,12 @@ int main(int argc, char** argv) {
       }else {
          source_path = argv[i];
       }
+   }
+
+   if (def_tar.find("darwin") != std::string::npos) {
+      target = new Target_Apple(def_tar);
+   } else {
+      target = new Target_GNU(def_tar);
    }
 
    std::string source = load_file(source_path);

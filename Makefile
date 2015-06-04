@@ -21,8 +21,8 @@ INCLUDES	:=	include
 # options for code generation
 #---------------------------------------------------------------------------------
 ARCH	:=
-
-CFLAGS	:=	 -g -Wall -Wno-missing-braces -O2 -fomit-frame-pointer -ffast-math $(ARCH)
+PREFIX	?= $(TOPDIR)/build
+CFLAGS	:=	 -DPREFIX=$(PREFIX) -g -Wall -Wno-missing-braces -O2 -fomit-frame-pointer -ffast-math $(ARCH)
 
 CFLAGS	+=	 $(INCLUDE)
 
@@ -38,6 +38,42 @@ LIBS	:=
 # include and lib
 #---------------------------------------------------------------------------------
 LIBDIRS	:=
+
+
+LIBHTN_DIR	:= libhtn
+
+UNAME_S := $(shell uname -s)
+ifeq ($(UNAME_S),Linux)
+	HOST_THREE	:= gnu
+	HOST_TWO	:= linux
+endif
+ifeq ($(UNAME_S),Darwin)
+	HOST_TWO	:= apple
+	HOST_THREE	:= darwin
+endif
+UNAME_P := $(shell uname -p)
+#ifeq ($(UNAME_P),x86_64)
+#	HOST_CPU := amd64
+#endif
+ifneq ($(filter %86,$(UNAME_P)),)
+	HOST_CPU := i386
+endif
+ifneq ($(filter arm%,$(UNAME_P)),)
+	HOST_CPU := arm
+endif
+HOST_TRIPLE	:= $(HOST_CPU)-$(HOST_TWO)-$(HOST_THREE)
+ifeq ($(HOST_TRIPLE),i386-apple-darwin)
+	CXXFLAGS	+= -DDARWIN_HOST=1
+endif
+DEFAULT_TARGET	?= $(HOST_TRIPLE)
+CXXFLAGS	+= -DDEFAULT_TARGET=$(DEFAULT_TARGET)
+LIBHTN_MAKE_ARGS	:= TOPDIR=$(TOPDIR) HOST_TRIPLE=$(HOST_TRIPLE) PREFIX=$(PREFIX)
+
+HOST_GNU_AS := $(shell $(PREFIX)/bin/$(HOST_TRIPLE)-as --version 2>/dev/null)
+
+ifdef HOST_GNU_AS
+    CXXFLAGS	+= -DUSE_GNU_BINUTILS=1
+endif
 
 
 #---------------------------------------------------------------------------------
@@ -84,14 +120,20 @@ export INCLUDE	:=	$(foreach dir,$(INCLUDES),-I$(CURDIR)/$(dir)) \
 export LIBPATHS	:=	$(foreach dir,$(LIBDIRS),-L$(dir)/lib)
 
 
-.PHONY: $(BUILD) clean all run
+.PHONY: $(BUILD) clean all run libhtn-all
 
 #---------------------------------------------------------------------------------
-all: $(BUILD) libhtn
+all: $(BUILD) libhtn-all
 
-libhtn:
-	cd platform ; \
-	make TOPDIR=$(TOPDIR)
+libhtn-all: libhtn-i386-apple-darwin libhtn-i386-linux-gnu
+
+libhtn-i386-apple-darwin:
+	cd $(LIBHTN_DIR)/i386-apple-darwin ; \
+	make $(LIBHTN_MAKE_ARGS) COMPILE_TARGET=i386-apple-darwin
+
+libhtn-i386-linux-gnu:
+	cd $(LIBHTN_DIR)/i386-linux-gnu ; \
+	make $(LIBHTN_MAKE_ARGS) COMPILE_TARGET=i386-linux-gnu
 
 $(BUILD):
 	@[ -d $@ ] || mkdir -p $@
@@ -101,7 +143,8 @@ $(BUILD):
 clean:
 	@echo clean ...
 	@rm -fr $(BUILD) $(TARGET) $(TARGET).elf
-	cd platform ; make clean
+	cd libhtn/i386-linux-gnu ; make clean
+	cd libhtn/i386-apple-darwin ; make clean
 
 
 run:

@@ -9,6 +9,7 @@ struct Target_GNU : public Target {
    virtual std::string as_text_section();
    virtual std::string as_rodata_section();
 
+   Target_GNU (std::string default_tar);
 };
 
 #endif

@@ -21,8 +21,13 @@ INCLUDES	:=	include
 #---------------------------------------------------------------------------------
 # options for code generation
 #---------------------------------------------------------------------------------
-HFLAGS	:=
+HFLAGS	:= --target $(COMPILE_TARGET)
 
+CHECK_TARGET_AR	:= $(shell $(PREFIX)/bin/$(COMPILE_TARGET)-ar --version 2>/dev/null)
+
+ifdef CHECK_TARGET_AR
+	AR	= $(PREFIX)/bin/$(COMPILE_TARGET)-ar
+endif
 
 #---------------------------------------------------------------------------------
 # no real need to edit anything past this point unless you need to add additional

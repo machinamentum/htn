@@ -7,18 +7,20 @@
 //we're working with a Clang assembler or GNU assembler
 //depending on the target.
 
-#if defined(__APPLE__) && defined(__clang__)
+#if defined(DARWIN_HOST) && !defined(USE_GNU_BINUTILS)
 std::string Host::i386_assembler_ops() {
    return std::string("");
 }
 
 std::string Host::i386_arch_flag() {
-   return " -arch i386 ";
+   return " -arch i386 -Q ";
 }
 
 std::string Host::link_ops() {
-   return " -arch i386 -macosx_version_min 10.10 -e _start ";
+   return " -arch i386 -Q -macosx_version_min 10.10 -e _start ";
 }
+
+
 #else
 std::string Host::i386_assembler_ops() {
    return std::string("");
