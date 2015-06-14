@@ -774,26 +774,36 @@ static std::vector<char> load_bin_file(const std::string pathname) {
 //}
 
 #include "Gen_386.h"
+#include "Gen_ARM.h"
 #include "Target.h"
 #include "common.h"
 
 Target *target = NULL;
+std::string ident_str = "HTN (alpha development build)";
 
 static void generate_386(Scope &scope, std::ostream &os) {
-   //os << ".intel_syntax" << std::endl;
-   //generate function extern table (GAS doesnt require this?)
-   //os << ".data" << std::endl;
-   //generate data section
-   //os << ".text" << std::endl;
-   //os << ".section __TEXT,__text,regular,pure_instructions" << std::endl;
    os << target->as_text_section() << std::endl;
    Gen_386 g386 = Gen_386(os);
    g386.gen_scope(scope);
 
-   //os << ".section __TEXT,__cstring,cstring_literals" << std::endl;
-
    os << target->as_rodata_section() << std::endl;
    g386.gen_rodata();
+   os << "\t.ident\t\"" << ident_str << "\"" << std::endl;
+}
+
+static void generate_arm(Scope &scope, std::ostream &os) {
+   os << target->as_text_section() << std::endl;
+   os << "\t.arch armv5te\n\t.fpu softvfp" << std::endl;
+   os << "\t.thumb" << std::endl;
+   // os << "\t.syntax unified" << std::endl;
+   os << "\t.align 2" << std::endl;
+   os << "\t.eabi_attribute 23, 1\n\t.eabi_attribute 24, 1\n\t.eabi_attribute 25, 1\n\t.eabi_attribute 26, 1\n\t.eabi_attribute 30, 2\n\t.eabi_attribute 34, 0\n\t.eabi_attribute 18, 4" << std::endl;
+   Gen_ARM gARM = Gen_ARM(os);
+   gARM.gen_scope(scope);
+
+   os << target->as_rodata_section() << std::endl;
+   gARM.gen_rodata();
+   os << "\t.ident\t\"" << ident_str << "\"" << std::endl;
 }
 
 #include <fstream>
@@ -854,32 +864,20 @@ static std::string output_file;
 bool no_link = false;
 static std::string link_options = "";
 bool no_del_s = false;
-//void assemble_6502(const char *filename) {
-//
-//   auto create_str = [](const char *str) {
-//      char *out = (char *)malloc(strlen(str) + 1);
-//      snprintf(out, strlen(str) + 1, "%s", str);
-//      return out;
-//   };
-//
-//   char *args[3];
-//   args[1] = create_str("-q");
-//   args[2] = create_str(filename);
-//   main_asm6(3, args);
-//}
+
 
 #include <cstdio>
 
-void assemble_386(std::string path_str) {
+void assemble(std::string path_str) {
    std::string out(path_str);
    out.replace(out.rfind(".s"), 2, ".o");
    if (no_link) {
       if (output_file.compare("") == 0) {
          output_file = out;
       }
-      std::cout << exec(std::string(target->get_default_as() + target->arch_flag() + " -g -o ") + output_file + " " + path_str) << std::endl;
+      std::cout << exec(std::string(target->get_target_as() + target->arch_flag() + " -g -o ") + output_file + " " + path_str) << std::endl;
    } else {
-      std::cout << exec(std::string(target->get_default_as() + target->arch_flag() + " -g -o ") + out + " " + path_str) << std::endl;
+      std::cout << exec(std::string(target->get_target_as() + target->arch_flag() + " -g -o ") + out + " " + path_str) << std::endl;
       if (output_file.compare("") == 0) {
          output_file = out;
          output_file.replace(output_file.rfind(".o"), 2, "");
@@ -899,10 +897,9 @@ void assemble_386(std::string path_str) {
 static void print_usage() {
    printf("Usage: htn [options] <sources> \n");
    printf("\nOptions:\n");
-   printf("     -m386      IA-32 executable\n");
-  // printf("     -m6502     MOS 6502 flat binary, Atari 2600 flavor\n");
-   printf("     -o <out>   Specify file for output\n");
-   printf("     -c         Stop after compilation, does not invoke linker\n");
+   printf("  --target <sys>  Specifies the CPU/OS to compile to.\n");
+   printf("  -o       <out>  Specify file for output\n");
+   printf("  -c              Stop after compilation, does not invoke linker\n");
 }
 
 int main(int argc, char** argv) {
@@ -913,15 +910,10 @@ int main(int argc, char** argv) {
 
    std::string def_tar = STRING(DEFAULT_TARGET);
 
-   bool gen386 = true;
    std::string source_path;
    for (int i = 1; i < argc; ++i) {
       std::string arch = argv[i];
-      if (arch.compare("-m386") == 0) {
-         gen386 = true;
-      } else if(arch.compare("-m6502") == 0) {
-         //gen386 = false;
-      } else if (arch.compare("-c") == 0) {
+      if (arch.compare("-c") == 0) {
          no_link = true;
       } else if (arch.compare("-S") == 0) {
          no_del_s = true;
@@ -929,16 +921,17 @@ int main(int argc, char** argv) {
          ++i;
          if (i >= argc) {
             printf("Not enough args to support -o switch\n");
-            break;
+            return -1;
          }
          output_file = argv[i];
       } else if (arch.compare("--target") == 0) {
          ++i;
          if (i >= argc) {
             printf("Not enough args to support --target\n");
-            break;
+            return -1;
          }
          def_tar = argv[i];
+         std::cout << "New target: " << def_tar << std::endl;
       } else if (arch.compare(0, 2, "-l") == 0) {
          link_options += arch + " ";
       } else if (arch.compare("-framework") == 0) {
@@ -965,6 +958,10 @@ int main(int argc, char** argv) {
       target = new Target_GNU(def_tar);
    }
 
+   if (source_path.compare("") == 0) {
+      print_usage();
+      return -1;
+   }
    std::string source = load_file(source_path);
    source_file_name.push(source_path);
    Scope scope = parse(source);
@@ -974,14 +971,16 @@ int main(int argc, char** argv) {
    }
    source_path.replace(source_path.rfind(".htn"), std::string::npos, ".s");
    std::ofstream ofs(source_path);
-   if (gen386) {
+   if (target->get_target_cpu() == Target::X86) {
       generate_386(scope, ofs);
       ofs.close();
-      assemble_386(source_path);
+      assemble(source_path);
+   } else if (target->get_target_cpu() == Target::ARM) {
+      generate_arm(scope, ofs);
+      ofs.close();
+      assemble(source_path);
    } else {
-//      generate_6502(scope, ofs);
-//      ofs.close();
-//      assemble_6502(source_path.c_str());
+      std::cout << "Invalid target triple: " << target->target_triple << std::endl;
    }
 
    return 0;

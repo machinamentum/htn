@@ -4,7 +4,7 @@
 //Compatibility for Apple/Clang AS
 
 Target_Apple::Target_Apple(std::string tar) {
-   default_target = tar;
+   target_triple = tar;
 }
 
 std::string Target_Apple::as_text_section() {

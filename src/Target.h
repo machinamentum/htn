@@ -10,7 +10,13 @@
 //the Apple/Clang as and GNU as.
 struct Target {
 
-   std::string default_target;
+   enum TARGET_CPU {
+      X86,
+      ARM,
+      UNKNOWN
+   };
+
+   std::string target_triple;
 
    virtual std::string as_text_section();
    virtual std::string as_rodata_section();
@@ -18,9 +24,21 @@ struct Target {
    virtual std::string arch_flag();
    virtual std::string link_ops();
 
-   std::string get_default_as() {
-      if (default_target.size() == 0) return "as"; //system asembler
-      return STRING(PREFIX) + "/bin/" + default_target + "-as";
+   std::string get_target_as() {
+      if (target_triple.size() == 0) return "as"; //system asembler
+      return STRING(PREFIX) + "/bin/" + target_triple + "-as";
+   }
+
+   TARGET_CPU get_target_cpu() {
+      std::string cpu = target_triple.substr(0, target_triple.find("-"));
+      if (cpu.compare("i386") == 0) {
+         return X86;
+      }
+      if (cpu.compare("arm") == 0) {
+         return ARM;
+      }
+
+      return UNKNOWN;
    }
 };
 

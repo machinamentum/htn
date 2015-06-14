@@ -4,7 +4,7 @@
 //Compatibility for GNU AS
 
 Target_GNU::Target_GNU(std::string tar) {
-   default_target = tar;
+   target_triple = tar;
 }
 
 std::string Target_GNU::as_text_section() {
@@ -20,9 +20,15 @@ std::string Target_GNU::assembler_ops() {
 }
 
 std::string Target_GNU::arch_flag() {
-   return " --32 ";
+   if (get_target_cpu() == Target::X86) {
+      return " --32 ";
+   }
+   return "";
 }
 
 std::string Target_GNU::link_ops() {
-   return " -m elf_i386 ";
+   if (get_target_cpu() == Target::X86) {
+      return " -m elf_i386 ";
+   }
+   return " -m elf_arm ";
 }
