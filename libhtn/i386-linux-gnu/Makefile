@@ -29,6 +29,11 @@ ifdef CHECK_TARGET_AR
 	AR	= $(PREFIX)/bin/$(COMPILE_TARGET)-ar
 endif
 
+#if the host is the compile target, assume the use of the system's toolchain
+ifeq ($(HOST_TRIPLE),$(COMPILE_TARGET))
+	AR = ar
+endif
+
 #---------------------------------------------------------------------------------
 # no real need to edit anything past this point unless you need to add additional
 # rules for different file extensions

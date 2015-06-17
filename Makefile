@@ -120,11 +120,6 @@ export INCLUDE	:=	$(foreach dir,$(INCLUDES),-I$(CURDIR)/$(dir)) \
 export LIBPATHS	:=	$(foreach dir,$(LIBDIRS),-L$(dir)/lib)
 
 
-.PHONY: $(BUILD) clean all run libhtn-all
-
-#---------------------------------------------------------------------------------
-all: $(BUILD) libhtn-all
-
 LIBHTN_AVAILABLE_TOOLCHAINS	:=
 
 HAS_AS	:=	$(shell $(PREFIX)/bin/i386-linux-gnu-as --version 2>/dev/null)
@@ -136,6 +131,13 @@ HAS_AS	:=	$(shell $(PREFIX)/bin/i386-apple-darwin-as --version 2>/dev/null)
 ifdef HAS_AS
 	LIBHTN_AVAILABLE_TOOLCHAINS	+=	libhtn-i386-apple-darwin
 endif
+
+.PHONY: $(BUILD) clean all run
+
+all: $(BUILD) libhtn-all
+htn	:	$(BUILD)
+
+#---------------------------------------------------------------------------------
 
 libhtn-all: $(LIBHTN_AVAILABLE_TOOLCHAINS)
 

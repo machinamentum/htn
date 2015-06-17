@@ -25,8 +25,13 @@ struct Target {
    virtual std::string link_ops();
 
    std::string get_target_as() {
-      if (target_triple.size() == 0) return "as"; //system asembler
+      if (target_triple.size() == 0 || target_triple.compare(STRING(DEFAULT_TARGET)) == 0) return "as"; //system asembler
       return STRING(PREFIX) + "/bin/" + target_triple + "-as";
+   }
+
+   std::string get_target_ld() {
+      if (target_triple.size() == 0 || target_triple.compare(STRING(DEFAULT_TARGET)) == 0) return "ld"; //system ld
+      return STRING(PREFIX) + "/bin/" + target_triple + "-ld";
    }
 
    TARGET_CPU get_target_cpu() {

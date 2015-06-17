@@ -23,5 +23,5 @@ std::string Target_Apple::arch_flag() {
    return " -arch i386 -Q ";
 }
 std::string Target_Apple::link_ops() {
-   return " -arch i386 -Q -macosx_version_min 10.10 -e _start ";
+   return " -arch i386 -macosx_version_min 10.10 -e _start ";
 }
