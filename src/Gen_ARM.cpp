@@ -21,7 +21,24 @@ gen_rodata() {
    }
 }
 
-std::string  Gen_ARM::gen_var(Variable var) {
+bool is_reg(Variable var) {
+   if (var.name.compare(REGISTER_RETURN) == 0) {
+      return true;
+   } else if (var.name.compare(REGISTER_ACCUMULATOR) == 0) {
+      return true;
+   } else if (var.name.compare(REGISTER_INDEX) == 0) {
+      return true;
+   } else if (var.name.compare(REGISTER_FRAME_POINTER) == 0) {
+      return true;
+   } else if (var.name.compare(REGISTER_STACK_POINTER) == 0) {
+      return true;
+   } else if (var.name.compare(REG_LINK.name) == 0) {
+      return true;
+   }
+   return false;
+}
+
+std::string Gen_ARM::gen_var(Variable var) {
 
    if (var.name.compare(REGISTER_RETURN) == 0) {
       return "r0";
@@ -29,6 +46,8 @@ std::string  Gen_ARM::gen_var(Variable var) {
       return "r2";
    } else if (var.name.compare(REGISTER_INDEX) == 0) {
       return "r3";
+   } else if (var.name.compare(REGISTER_FRAME_POINTER) == 0) {
+      return "r7"; //NOTE THUMB = r7, ARM = r11
    } else if (var.name.compare(REGISTER_STACK_POINTER) == 0) {
       return "r13";
    } else if (var.name.compare(REG_LINK.name) == 0) {
@@ -41,13 +60,14 @@ std::string  Gen_ARM::gen_var(Variable var) {
       float val = var.fvalue;
       return std::string("$") + std::to_string(*(int *)&val);
    } else if (var.type == Variable::DQString) {
+      //TODO(josh)
       // emit_call(get_new_label());
       // os << get_old_label() << ":" << std::endl;
       // emit_pop(REG_INDEX);
       // os << '\t' << "lea " << get_rodata(var) << " - " << get_old_label() << "(%ecx), %eax" << std::endl;
       // return gen_var(REG_ACCUMULATOR);
    } else {
-       return stack_man.load_var(var);
+       return stack_man->load_var(var);
    }
 }
 
@@ -63,9 +83,10 @@ void Gen_ARM::emit_inc(Variable dst) {
 }
 
 void Gen_ARM::emit_push(Variable src) {
-   std::string src_s = gen_var(src);
+   // std::string src_s = gen_var(src);
    //os << '\t' << "push " << src_s << std::endl;
-   os << '\t' << "push " << "{" << src_s << "}" << std::endl;
+   emit_mov(src, REG_ACCUMULATOR);
+   os << '\t' << "push " << "{" << gen_var(REG_ACCUMULATOR) << "}" << std::endl;
 }
 
 void Gen_ARM::emit_pop(Variable dst) {
@@ -74,9 +95,13 @@ void Gen_ARM::emit_pop(Variable dst) {
 }
 
 void Gen_ARM::emit_mov(Variable src, Variable dst) {
+   std::string instr = "ldr ";
+   if (is_reg(src) && is_reg(dst)) {
+      instr = "mov ";
+   }
    std::string dst_s = gen_var(dst);
    std::string src_s = gen_var(src);
-   os << '\t' << "mov " << dst_s << ", " << src_s << std::endl;
+   os << '\t' << instr << dst_s << ", " << src_s << std::endl;
 }
 
 void Gen_ARM::emit_sub(Variable src, Variable dst) {

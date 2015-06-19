@@ -19,6 +19,8 @@
 static std::stack<std::string> source_code_stack;
 std::stack<std::string> source_file_name;
 std::string load_file(const std::string pathname);
+std::string load_file_with_include(const std::string pathname);
+int file_exists_with_include(const std::string pathname);
 
 void print_token(Token tok) {
    printf("%s", (tok.pretty_string() + " ; ").c_str());
@@ -195,14 +197,15 @@ void Parser::parse_scope(std::string name_str, Scope &scope, long delim_token) {
             if (tok.type == Token::DQSTRING) {
                std::string import_str = tok.string;
                std::string import_src = load_file(import_str);
-               if (import_src.compare("") == 0) {
+               if (!file_exists_with_include(import_str)) {
                   import_str = source_file_name.top().substr(0, source_file_name.top().find_last_of('/')) + "/" + import_str;
-                  import_src = load_file(import_str);
-                  if (import_src.compare("") == 0) {
+                  if (!file_exists_with_include(import_str)) {
                      printf("File not found: %s\n", import_str.c_str());
                      exit(-1);
                   }
                }
+               import_src = load_file_with_include(import_str);
+               printf("Loaded :%s\n", import_str.c_str());
                source_code_stack.push(import_src);
                source_file_name.push(import_str);
                Parser par = Parser(import_src);

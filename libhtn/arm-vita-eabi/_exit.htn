@@ -1,0 +1,6 @@
+
+import "psp2/kernel/processmgr.htn";
+
+_exit : (rval : int) -> void {
+   sceKernelExitProcess(rval);
+}

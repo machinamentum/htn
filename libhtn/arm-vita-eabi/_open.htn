@@ -1,0 +1,4 @@
+
+_open : (path : *char, flags : int, mode : int) -> int {
+   return -1;
+}

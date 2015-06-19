@@ -12,6 +12,7 @@
 #include "Code_Gen.h"
 #include "Lexer.h"
 #include "Parser.h"
+#include "common.h"
 
 Function::
 Function() {
@@ -27,7 +28,26 @@ Expression() {
 
 extern std::stack<std::string> source_file_name;
 extern int error_count;
+std::vector<std::string> includes;
+std::string prefix_dir = STRING(PREFIX) + "/";
 
+int file_exists(const std::string pathname) {
+   int out = 1;
+   std::ifstream t(pathname);
+   if (!t.good()) {
+      out = 0;
+   }
+   t.close();
+   return out;
+}
+
+int file_exists_with_include(const std::string pathname) {
+   for (std::string ipath : includes) {
+      if (file_exists(ipath + "/" + pathname)) return 1;
+   }
+
+   return file_exists(prefix_dir + "include/" + pathname);
+}
 
 std::string load_file(const std::string pathname) {
    std::ifstream t(pathname);
@@ -43,6 +63,16 @@ std::string load_file(const std::string pathname) {
 
    str.assign((std::istreambuf_iterator<char>(t)), std::istreambuf_iterator<char>());
    return str;
+}
+
+std::string load_file_with_include(const std::string pathname) {
+   for (std::string ipath : includes) {
+      if (file_exists(ipath + "/" + pathname)) {
+         return load_file(ipath + "/" + pathname);
+      }
+   }
+
+   return load_file(prefix_dir + "include/" + pathname);
 }
 
 std::vector<char> load_bin_file(const std::string pathname) {
@@ -66,7 +96,7 @@ std::vector<char> load_bin_file(const std::string pathname) {
 #include "common.h"
 
 Target *target = NULL;
-std::string ident_str = "HTN (alpha development build)";
+std::string ident_str = "HTN (alpha development build) " + STRING(BRANCH_COMMIT);
 
 static void generate_386(Scope &scope, std::ostream &os) {
    os << target->as_text_section() << std::endl;
@@ -150,6 +180,7 @@ void assemble(std::string path_str) {
 }
 
 static void print_usage() {
+   printf("%s\n", ident_str.c_str());
    printf("Usage: htn [options] <sources> \n");
    printf("\nOptions:\n");
    printf("  --target <sys>  Specifies the CPU/OS to compile to.\n");
@@ -172,6 +203,10 @@ int main(int argc, char** argv) {
          no_link = true;
       } else if (arch.compare("-S") == 0) {
          no_del_s = true;
+      } else if (arch.compare(0, 2, "-I") == 0) {
+         std::string include_path = arch.substr(2);
+         printf("New include path: %s\n", include_path.c_str());
+         includes.push_back(include_path);
       } else if (arch.compare("-o") == 0) {
          ++i;
          if (i >= argc) {
@@ -206,7 +241,7 @@ int main(int argc, char** argv) {
          source_path = argv[i];
       }
    }
-
+   prefix_dir += def_tar + "/";
    if (def_tar.find("darwin") != std::string::npos) {
       target = new Target_Apple(def_tar);
    } else {

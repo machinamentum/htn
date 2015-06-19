@@ -1,0 +1,5 @@
+
+
+_write : (fd : int, cbuf : *char, nbyte : int) -> int {
+   return -1;
+}

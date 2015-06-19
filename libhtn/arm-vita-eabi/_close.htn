@@ -1,0 +1,4 @@
+
+_close : (fd : int) -> int {
+   return -1;
+}

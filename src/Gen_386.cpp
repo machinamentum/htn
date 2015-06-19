@@ -1,6 +1,6 @@
 #include "Gen_386.h"
 
-const Variable REG_EBP = create_register("_REG_EBP");
+// const Variable REG_FRAME = create_register("_REG_FRAME");
 
 void Gen_386::
 gen_rodata() {
@@ -31,7 +31,7 @@ std::string  Gen_386::gen_var(Variable var) {
       return "%ecx";
    } else if (var.name.compare(REGISTER_STACK_POINTER) == 0) {
       return "%esp";
-   } else if (var.name.compare(REG_EBP.name) == 0) {
+   } else if (var.name.compare(REGISTER_FRAME_POINTER) == 0) {
       return "%ebp";
    }
 
@@ -47,7 +47,7 @@ std::string  Gen_386::gen_var(Variable var) {
       os << '\t' << "lea " << get_rodata(var) << " - " << get_old_label() << "(%ecx), %eax" << std::endl;
       return gen_var(REG_ACCUMULATOR);
    } else {
-       return stack_man.load_var(var);
+       return stack_man->load_var(var);
    }
 }
 
@@ -111,18 +111,18 @@ void Gen_386::emit_cond_jump(std::string label, Conditional::CType condition) {
       case Conditional::EQUAL: {
          os << "jne ";
       } break;
-      
+
       case Conditional::GREATER_THAN: {
          os << "jle ";
       } break;
-      
+
       case Conditional::LESS_THAN: {
          os << "jge ";
       } break;
       case Conditional::GREATER_EQUAL: {
          os << "jl ";
       } break;
-      
+
       case Conditional::LESS_EQUAL: {
          os << "jg ";
       } break;
@@ -135,10 +135,10 @@ void Gen_386::emit_return() {
 }
 
 void Gen_386::emit_function_header() {
-   emit_push(REG_EBP);
-   emit_mov(REG_STACK, REG_EBP);
+   emit_push(REG_FRAME);
+   emit_mov(REG_STACK, REG_FRAME);
 }
 
 void Gen_386::emit_function_footer() {
-   emit_pop(REG_EBP);
+   emit_pop(REG_FRAME);
 }

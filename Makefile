@@ -22,7 +22,13 @@ INCLUDES	:=	include
 #---------------------------------------------------------------------------------
 ARCH	:=
 PREFIX	?= $(TOPDIR)/build
-CFLAGS	:=	 -DPREFIX=$(PREFIX) -g -Wall -Wno-missing-braces -O2 -fomit-frame-pointer -ffast-math $(ARCH)
+
+GIT_BRANCH	:=	$(shell git rev-parse --abbrev-ref HEAD)
+GIT_COMMIT	:=	$(shell git rev-parse --short HEAD)
+GIT_BUILD_VERSION	:=	$(GIT_BRANCH)-$(GIT_COMMIT)
+
+CFLAGS	:=	 -DBRANCH_COMMIT=$(GIT_BUILD_VERSION) -DPREFIX=$(PREFIX) -g -Wall \
+	-Wno-missing-braces -O2 -fomit-frame-pointer -ffast-math $(ARCH)
 
 CFLAGS	+=	 $(INCLUDE)
 
@@ -132,6 +138,11 @@ ifdef HAS_AS
 	LIBHTN_AVAILABLE_TOOLCHAINS	+=	libhtn-i386-apple-darwin
 endif
 
+HAS_AS	:=	$(shell $(PREFIX)/bin/arm-vita-eabi-as --version 2>/dev/null)
+ifdef HAS_AS
+	LIBHTN_AVAILABLE_TOOLCHAINS	+=	libhtn-arm-vita-eabi
+endif
+
 .PHONY: $(BUILD) clean all run
 
 all: $(BUILD) libhtn-all
@@ -149,6 +160,10 @@ libhtn-i386-linux-gnu:
 	cd $(LIBHTN_DIR)/i386-linux-gnu ; \
 	make $(LIBHTN_MAKE_ARGS) COMPILE_TARGET=i386-linux-gnu
 
+libhtn-arm-vita-eabi:
+	cd $(LIBHTN_DIR)/arm-vita-eabi ; \
+	make $(LIBHTN_MAKE_ARGS) COMPILE_TARGET=arm-vita-eabi
+
 $(BUILD):
 	@[ -d $@ ] || mkdir -p $@
 	@make --no-print-directory -C $(BUILD) -f $(CURDIR)/Makefile
@@ -159,6 +174,7 @@ clean:
 	@rm -fr $(BUILD) $(TARGET) $(TARGET).elf
 	cd libhtn/i386-linux-gnu ; make clean
 	cd libhtn/i386-apple-darwin ; make clean
+	cd libhtn/arm-vita-eabi ; make clean
 
 
 run:

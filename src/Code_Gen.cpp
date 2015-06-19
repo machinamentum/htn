@@ -39,15 +39,15 @@ gen_func_params(std::vector<Variable> &plist) {
 
    emit_sub(create_const_int32(stack_align), REG_STACK);
    int adj = stack_align;
-   stack_man.ext_adj = adj;
+   stack_man->ext_adj = adj;
    for (int i = plist.size() - 1; i >= 0; i--) {
 
       emit_push(plist[i]);
       adj += 4;
-      stack_man.ext_adj = adj;
+      stack_man->ext_adj = adj;
    }
 
-   stack_man.ext_adj = 0;
+   stack_man->ext_adj = 0;
 }
 
 
@@ -105,7 +105,7 @@ gen_expression(std::string scope_name, Expression &expr) {
                while (final.find_first_of("@") != std::string::npos) {
 
                   if (final.find_first_of("@0") != std::string::npos) {
-                     std::string load_from_stack = stack_man.load_var(instr.call_target_params[1]);
+                     std::string load_from_stack = stack_man->load_var(instr.call_target_params[1]);
                      final.replace(final.find_first_of("@0"), 2, load_from_stack);
                   }
                }
@@ -172,7 +172,7 @@ gen_scope_expressions(std::string scope_name, Scope &scope) {
 
 void Code_Gen::
 gen_function(Function &func) {
-   stack_man.params = func.parameters;
+   stack_man->params = func.parameters;
    if (func.name.compare("__asm__") != 0) {
 
 
@@ -182,7 +182,7 @@ gen_function(Function &func) {
          if (!func.plain_instructions) {
             emit_function_header();
          }
-         stack_man.scope = func.scope;
+         stack_man->scope = func.scope;
          int padding = 16 - ((func.scope->variables.size() * 4) % 16);
          if (padding == 16) padding = 0;
          int stack_adj = func.scope->variables.size() * 4 + padding;
@@ -211,7 +211,7 @@ gen_scope(Scope &scope) {
    if (scope.empty()) {
       return;
    }
-   stack_man.scope = &scope;
+   stack_man->scope = &scope;
    unsigned int scope_num = get_scope_num(&scope);
    std::string scope_name = "L" + std::string("scope_") + std::to_string(scope_num);
    if (scope_num != 0) {
