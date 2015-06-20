@@ -91,8 +91,9 @@ struct  Code_Gen {
    void gen_scope_expressions(std::string scope_name, Scope &scope);
    void gen_scope_functions(Scope &scope);
    void gen_function(Function &func);
-   void gen_func_params(std::vector<Variable> &plist);
-//   void gen_rodata(std::ostream &os);
+   virtual void gen_func_params(std::vector<Variable> &plist);
+
+   virtual void gen_function_attributes(Function &func);
 
    virtual std::string gen_var(Variable var) = 0;
 

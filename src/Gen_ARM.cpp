@@ -1,6 +1,16 @@
 #include "Gen_ARM.h"
 
 const Variable REG_LINK = create_register("_REG_LINK");
+const Variable REG_ARG0 = create_register("_ARM_ARG_R0");
+const Variable REG_ARG1 = create_register("_ARM_ARG_R1");
+const Variable REG_ARG2 = create_register("_ARM_ARG_R2");
+const Variable REG_ARG3 = create_register("_ARM_ARG_R3");
+const Variable ARM_ARGS[] = {
+   REG_ARG0,
+   REG_ARG1,
+   REG_ARG2,
+   REG_ARG3
+};
 
 void Gen_ARM::
 gen_rodata() {
@@ -21,8 +31,40 @@ gen_rodata() {
    }
 }
 
+void Gen_ARM::
+gen_func_params(std::vector<Variable> &plist) {
+   if (plist.size() < 1) {
+      printf("Plist empty\n");
+      return;
+   }
+   int size = plist.size();
+   if (size > 5) {
+      //TODO(josh) stack stuff
+   }
+   for (size_t i = 0; i < (plist.size() > 4 ? 4 : plist.size()); ++i) {
+      emit_mov(plist[i], ARM_ARGS[i]);
+   }
+}
+
+void Gen_ARM::
+gen_function_attributes(Function &func) {
+   os << "\t.align 2" << std::endl;
+   os << "\t.globl " << func.name << std::endl;
+   os << "\t.code 16" << std::endl;
+   os << "\t.thumb_func" << std::endl;
+   os << "\t.type " << func.name << ", %function" << std::endl;
+}
+
 bool is_reg(Variable var) {
-   if (var.name.compare(REGISTER_RETURN) == 0) {
+   if (var.name.compare(ARM_ARGS[0].name) == 0) {
+      return true;
+   } else if (var.name.compare(ARM_ARGS[1].name) == 0) {
+      return true;
+   } else if (var.name.compare(ARM_ARGS[2].name) == 0) {
+      return true;
+   } else if (var.name.compare(ARM_ARGS[3].name) == 0) {
+      return true;
+   } else if (var.name.compare(REGISTER_RETURN) == 0) {
       return true;
    } else if (var.name.compare(REGISTER_ACCUMULATOR) == 0) {
       return true;
@@ -40,7 +82,15 @@ bool is_reg(Variable var) {
 
 std::string Gen_ARM::gen_var(Variable var) {
 
-   if (var.name.compare(REGISTER_RETURN) == 0) {
+   if (var.name.compare(ARM_ARGS[0].name) == 0) {
+      return "r0";
+   } else if (var.name.compare(ARM_ARGS[1].name) == 0) {
+      return "r1";
+   } else if (var.name.compare(ARM_ARGS[2].name) == 0) {
+      return "r2";
+   } else if (var.name.compare(ARM_ARGS[3].name) == 0) {
+      return "r3";
+   } else if (var.name.compare(REGISTER_RETURN) == 0) {
       return "r0";
    } else if (var.name.compare(REGISTER_ACCUMULATOR) == 0) {
       return "r2";
@@ -55,17 +105,12 @@ std::string Gen_ARM::gen_var(Variable var) {
    }
 
    else if (var.is_type_const && var.type == Variable::INT_32BIT) {
-      return std::string("$") + std::to_string(var.pvalue);
+      return std::string("#") + std::to_string(var.pvalue);
    } else if (var.is_type_const && var.type == Variable::FLOAT_32BIT) {
       float val = var.fvalue;
-      return std::string("$") + std::to_string(*(int *)&val);
+      return std::string("#") + std::to_string(*(int *)&val);
    } else if (var.type == Variable::DQString) {
-      //TODO(josh)
-      // emit_call(get_new_label());
-      // os << get_old_label() << ":" << std::endl;
-      // emit_pop(REG_INDEX);
-      // os << '\t' << "lea " << get_rodata(var) << " - " << get_old_label() << "(%ecx), %eax" << std::endl;
-      // return gen_var(REG_ACCUMULATOR);
+      return "=" + get_rodata(var);
    } else {
        return stack_man->load_var(var);
    }
@@ -96,7 +141,7 @@ void Gen_ARM::emit_pop(Variable dst) {
 
 void Gen_ARM::emit_mov(Variable src, Variable dst) {
    std::string instr = "ldr ";
-   if (is_reg(src) && is_reg(dst)) {
+   if ((is_reg(src) && is_reg(dst)) || (src.is_type_const)) {
       instr = "mov ";
    }
    std::string dst_s = gen_var(dst);
@@ -157,17 +202,13 @@ void Gen_ARM::emit_cond_jump(std::string label, Conditional::CType condition) {
 }
 
 void Gen_ARM::emit_return() {
-   // os << '\t' << "ret" << std::endl;
    os << '\t' << "mov pc, " << gen_var(REG_LINK) << std::endl;
 }
 
 void Gen_ARM::emit_function_header() {
-   // emit_push(REG_LINK);
-   os << "\t.code 16\n\t.thumb_func\n\t.align 2" << std::endl;
    os << '\t' << "push " << " { r4, r5, r6, r7, lr }" << std::endl;
 }
 
 void Gen_ARM::emit_function_footer() {
    os << '\t' << "pop " << " { r4, r5, r6, r7, pc }" << std::endl;
-   // emit_pop(REG_LINK);
 }

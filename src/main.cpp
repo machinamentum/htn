@@ -109,12 +109,16 @@ static void generate_386(Scope &scope, std::ostream &os) {
 }
 
 static void generate_arm(Scope &scope, std::ostream &os) {
-   os << target->as_text_section() << std::endl;
    os << "\t.arch armv5te\n\t.fpu softvfp" << std::endl;
    os << "\t.thumb" << std::endl;
-   // os << "\t.syntax unified" << std::endl;
-   os << "\t.align 2" << std::endl;
-   os << "\t.eabi_attribute 23, 1\n\t.eabi_attribute 24, 1\n\t.eabi_attribute 25, 1\n\t.eabi_attribute 26, 1\n\t.eabi_attribute 30, 2\n\t.eabi_attribute 34, 0\n\t.eabi_attribute 18, 4" << std::endl;
+   os << "\t.eabi_attribute 23, 1\n"
+      "\t.eabi_attribute 24, 1\n"
+      "\t.eabi_attribute 25, 1\n"
+      "\t.eabi_attribute 26, 1\n"
+      "\t.eabi_attribute 30, 2\n"
+      "\t.eabi_attribute 34, 0\n"
+      "\t.eabi_attribute 18, 4" << std::endl;
+   os << "\t" << target->as_text_section() << std::endl;
    Gen_ARM gARM = Gen_ARM(os);
    gARM.gen_scope(scope);
 

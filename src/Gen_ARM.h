@@ -72,6 +72,8 @@ struct Gen_ARM : public Code_Gen {
    virtual std::string gen_var(Variable var);
 
    virtual void gen_rodata();
+   virtual void gen_func_params(std::vector<Variable> &plist);
+   virtual void gen_function_attributes(Function &func);
 
    virtual void emit_cmp(Variable src0, Variable src1);
    virtual void emit_inc(Variable dst);

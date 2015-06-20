@@ -171,13 +171,18 @@ gen_scope_expressions(std::string scope_name, Scope &scope) {
 }
 
 void Code_Gen::
+gen_function_attributes(Function &func) {
+   os << ".globl " << func.name << std::endl;
+}
+
+void Code_Gen::
 gen_function(Function &func) {
    stack_man->params = func.parameters;
    if (func.name.compare("__asm__") != 0) {
 
 
       if (!func.should_inline && !func.is_not_definition) {
-         os << ".globl " << func.name << std::endl;
+         gen_function_attributes(func);
          os << "" << func.name << ":" << std::endl;
          if (!func.plain_instructions) {
             emit_function_header();
