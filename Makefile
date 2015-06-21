@@ -153,15 +153,15 @@ htn	:	$(BUILD)
 libhtn-all: $(LIBHTN_AVAILABLE_TOOLCHAINS)
 
 libhtn-i386-apple-darwin:
-	cd $(LIBHTN_DIR)/i386-apple-darwin ; \
+	cd $(LIBHTN_DIR)/platform/i386-apple-darwin ; \
 	make $(LIBHTN_MAKE_ARGS) COMPILE_TARGET=i386-apple-darwin
 
 libhtn-i386-linux-gnu:
-	cd $(LIBHTN_DIR)/i386-linux-gnu ; \
+	cd $(LIBHTN_DIR)/platform/i386-linux-gnu ; \
 	make $(LIBHTN_MAKE_ARGS) COMPILE_TARGET=i386-linux-gnu
 
 libhtn-arm-vita-eabi:
-	cd $(LIBHTN_DIR)/arm-vita-eabi ; \
+	cd $(LIBHTN_DIR)/platform/arm-vita-eabi ; \
 	make $(LIBHTN_MAKE_ARGS) COMPILE_TARGET=arm-vita-eabi
 
 $(BUILD):
@@ -172,9 +172,9 @@ $(BUILD):
 clean:
 	@echo clean ...
 	@rm -fr $(BUILD) $(TARGET) $(TARGET).elf
-	cd libhtn/i386-linux-gnu ; make clean
-	cd libhtn/i386-apple-darwin ; make clean
-	cd libhtn/arm-vita-eabi ; make clean
+	cd libhtn/platform/i386-linux-gnu ; make clean
+	cd libhtn/platform/i386-apple-darwin ; make clean
+	cd libhtn/platform/arm-vita-eabi ; make clean
 
 
 run:
