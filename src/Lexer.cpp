@@ -84,6 +84,12 @@ static Token get_token(Lexer &lex) {
    while (p != lex.eof && (is_white(*p) || is_newline(*p))) {
       if (*p == '\r' || *p == '\n') {
          p += do_newline(lex, p);
+      } else if (p != lex.eof && p[0] == '/' && p[1] == '/') {
+         while (p != lex.eof && *p != '\r' && *p != '\n') {
+            ++p;
+            ++lex.current_offset;
+         }
+         continue;
       } else {
          ++p;
          ++lex.current_offset;
