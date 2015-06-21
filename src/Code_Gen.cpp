@@ -50,24 +50,6 @@ gen_func_params(std::vector<Variable> &plist) {
    stack_man->ext_adj = 0;
 }
 
-
-
-int unwind_stack_variables(Scope &scope) {
-   int padding = 16 - ((scope.variables.size() * 4) % 16);
-   if (padding == 16) padding = 0;
-   int stack_adj = scope.variables.size() * 4 + padding;
-
-   if (scope.variables.size() == 0) {
-      stack_adj = 0;
-   }
-   //printf("Stack_adj: %d\n", stack_adj);
-   if (scope.is_function) {
-      return stack_adj;
-   }
-   //printf("ret: %d\n", stack_adj);
-   return (scope.parent ? unwind_stack_variables(*scope.parent) + stack_adj : stack_adj);
-}
-
 void Code_Gen::
 gen_expression(std::string scope_name, Expression &expr) {
    Instruction prevInstr;
@@ -124,12 +106,7 @@ gen_expression(std::string scope_name, Expression &expr) {
 
                   emit_call("" + cfunc->name);
                   std::vector<Variable> plist = instr.call_target_params;
-                  unsigned int stack_align = (16 - (plist.size() * 4));
-                  stack_align += plist.size() * 4;
-                  if (plist.size() == 0) stack_align = 0;
-                  if (instr.call_target_params.size()) {
-                     emit_add(create_const_int32(stack_align), REG_STACK);
-                  }
+                  gen_stack_pop_params(plist);
                }
             }
          } break;
@@ -137,7 +114,9 @@ gen_expression(std::string scope_name, Expression &expr) {
             if (instr.lvalue_data.type == Variable::POINTER || instr.lvalue_data.type == Variable::INT_32BIT) {
                if (instr.lvalue_data.name.compare("return") == 0) {
                   emit_mov(instr.rvalue_data, REG_RETURN);
-                  emit_add(create_const_int32(unwind_stack_variables(*expr.scope)), REG_STACK);
+                  if (int i = gen_stack_unwind(*expr.scope) > 0) {
+                     emit_add(create_const_int32(i), REG_STACK);
+                  }
                   emit_function_footer();
                   emit_return();
                } else {
@@ -188,18 +167,9 @@ gen_function(Function &func) {
             emit_function_header();
          }
          stack_man->scope = func.scope;
-         int padding = 16 - ((func.scope->variables.size() * 4) % 16);
-         if (padding == 16) padding = 0;
-         int stack_adj = func.scope->variables.size() * 4 + padding;
-         if (func.scope->variables.size() > 0) {
-            printf("stack_align %d\n", stack_adj);
-
-            emit_sub(create_const_int32(stack_adj), REG_STACK);
-         }
+         gen_stack_alignment(*func.scope);
          gen_scope_expressions("" + func.name, *func.scope);
-         if (func.scope->variables.size() > 0) {
-            emit_add(create_const_int32(stack_adj), REG_STACK);
-         }
+         gen_stack_unalignment(*func.scope);
          if (func.return_info.ptype == Variable::VOID) {
             if (!func.plain_instructions) {
                emit_function_footer();
@@ -222,20 +192,12 @@ gen_scope(Scope &scope) {
    if (scope_num != 0) {
       os << scope_name << ":" << std::endl;
    }
-   int padding = 16 - ((scope.variables.size() * 4) % 16);
-   if (padding == 16) padding = 0;
-   int stack_adj = scope.variables.size() * 4 + padding;
-   if (scope.variables.size() > 0) {
-      printf("stack_align %d\n", stack_adj);
-      emit_sub(create_const_int32(stack_adj), REG_STACK);
-   }
+   gen_stack_alignment(scope);
    gen_scope_expressions(scope_name, scope);
    if (scope_num != 0) {
       os << scope_name << "_end" << ":" << std::endl;
    }
-   if (scope.variables.size() > 0) {
-      emit_add(create_const_int32(stack_adj), REG_STACK);
-   }
+   gen_stack_unalignment(scope);
    for (auto &func : scope.functions) {
       gen_function(func);
    }

@@ -75,6 +75,10 @@ struct  Code_Gen {
       std::string ref_str = "L";
       if (var.type == Variable::DQString) {
          ref_str += "str";
+      } else if (var.type == Variable::FLOAT_32BIT) {
+         ref_str += "flt";
+      } else if (var.type == Variable::INT_32BIT) {
+         ref_str += "int";
       }
       ref_str += std::to_string(ramp++);
       rodata_data.push_back(var);
@@ -92,8 +96,11 @@ struct  Code_Gen {
    void gen_scope_functions(Scope &scope);
    void gen_function(Function &func);
    virtual void gen_func_params(std::vector<Variable> &plist);
-
    virtual void gen_function_attributes(Function &func);
+   virtual void gen_stack_alignment(Scope &scope) {};
+   virtual void gen_stack_unalignment(Scope &scope) {};
+   virtual void gen_stack_pop_params(std::vector<Variable> &plist) {};
+   virtual int gen_stack_unwind(Scope &scope) = 0;
 
    virtual std::string gen_var(Variable var) = 0;
 

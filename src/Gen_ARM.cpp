@@ -31,6 +31,19 @@ gen_rodata() {
    }
 }
 
+int Gen_ARM::
+gen_stack_unwind(Scope &scope) {
+   int stack_adj = scope.variables.size() * 4;
+
+   if (scope.variables.size() == 0) {
+      stack_adj = 0;
+   }
+   if (scope.is_function) {
+      return stack_adj;
+   }
+   return (scope.parent ? gen_stack_unwind(*scope.parent) + stack_adj : stack_adj);
+}
+
 void Gen_ARM::
 gen_func_params(std::vector<Variable> &plist) {
    if (plist.size() < 1) {
@@ -211,4 +224,5 @@ void Gen_ARM::emit_function_header() {
 
 void Gen_ARM::emit_function_footer() {
    os << '\t' << "pop " << " { r4, r5, r6, r7, pc }" << std::endl;
+   os << '\t' << ".ltorg" << std::endl;
 }

@@ -52,15 +52,22 @@ static int do_newline(Lexer &lex, const char *p) {
    return off;
 }
 
-static Token token(Lexer &lex, int off, char *npl, long type, std::string str = std::string(), long int_num = 0) {
+static Token token(Lexer &lex, int off, char *npl, long type, std::string str = std::string(), long int_num = 0, double real_number = 0.0) {
    lex.current_offset += off;
    Token tok;
    tok.string = std::string(str);
    tok.int_number = int_num;
+   tok.real_number = real_number;
    tok.type = type;
    tok.line_number = lex.current_line;
    tok.line_offset = lex.current_offset;
    tok.new_parse_loc = npl;
+   return tok;
+}
+
+static Token parse_error() {
+   Token tok;
+   tok.type = Token::PARSE_ERROR;
    return tok;
 }
 
@@ -157,10 +164,36 @@ static Token get_token(Lexer &lex) {
          goto single_char;
 
       case '0':
-         //hex
-         //bin
-      case '1': case '2': case '3': case '4': case '5': case '6': case '7': case '8': case '9':
+         if (p + 1 != lex.eof) {
+            //hex
+            if (p[1] == 'x' || p[1] == 'X') {
+               char *q;
+               long number = strtol((char *) p + 2,  &q, 16);
+               if (q == p + 2) return parse_error();
+               return token(lex, q - p, q, Token::INTLIT, std::string(), number);
+            }
 
+            //bin
+            if (p[1] == 'b' || p[2] == 'B') {
+               char *q;
+               long number = strtol((char *) p + 2,  &q, 2);
+               if (q == p + 2) return parse_error();
+               return token(lex, q - p, q, Token::INTLIT, std::string(), number);
+            }
+         }
+
+      case '1': case '2': case '3': case '4': case '5': case '6': case '7': case '8': case '9':
+         {
+            char *q = p;
+            while (q != lex.eof && (*q >= '0' && *q <= '9'))
+               ++q;
+            if (q != lex.eof) {
+               if (*q == '.' || *q == 'e' || *q == 'E') {
+                  double real_number = strtod((char *) p, (char**) &q);
+                  return token(lex, q - p, q, Token::FLOATLIT, std::string(), 0, real_number);
+               }
+            }
+         }
          if (p[0] == '0') {
             char *q = p;
             long num = strtol((char *) p, (char **) &q, 8);

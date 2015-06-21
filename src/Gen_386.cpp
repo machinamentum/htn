@@ -21,6 +21,50 @@ gen_rodata() {
    }
 }
 
+void Gen_386::gen_stack_alignment(Scope &scope) {
+   int padding = 16 - ((scope.variables.size() * 4) % 16);
+   if (padding == 16) padding = 0;
+   int stack_adj = scope.variables.size() * 4 + padding;
+   if (scope.variables.size() > 0) {
+      printf("stack_align %d\n", stack_adj);
+      emit_sub(create_const_int32(stack_adj), REG_STACK);
+   }
+}
+
+void Gen_386::gen_stack_unalignment(Scope &scope) {
+   int padding = 16 - ((scope.variables.size() * 4) % 16);
+   if (padding == 16) padding = 0;
+   int stack_adj = scope.variables.size() * 4 + padding;
+   if (scope.variables.size() > 0) {
+      emit_add(create_const_int32(stack_adj), REG_STACK);
+   }
+}
+
+void Gen_386::gen_stack_pop_params(std::vector<Variable> &plist) {
+   unsigned int stack_align = (16 - (plist.size() * 4));
+   stack_align += plist.size() * 4;
+   if (plist.size() == 0) stack_align = 0;
+   if (plist.size()) {
+      emit_add(create_const_int32(stack_align), REG_STACK);
+   }
+}
+
+int Gen_386::gen_stack_unwind(Scope &scope) {
+   int padding = 16 - ((scope.variables.size() * 4) % 16);
+   if (padding == 16) padding = 0;
+   int stack_adj = scope.variables.size() * 4 + padding;
+
+   if (scope.variables.size() == 0) {
+      stack_adj = 0;
+   }
+   //printf("Stack_adj: %d\n", stack_adj);
+   if (scope.is_function) {
+      return stack_adj;
+   }
+   //printf("ret: %d\n", stack_adj);
+   return (scope.parent ? gen_stack_unwind(*scope.parent) + stack_adj : stack_adj);
+}
+
 std::string  Gen_386::gen_var(Variable var) {
 
    if (var.name.compare(REGISTER_RETURN) == 0) {

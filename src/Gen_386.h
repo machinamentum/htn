@@ -74,6 +74,10 @@ struct Gen_386 : public Code_Gen {
    }
 
    virtual std::string gen_var(Variable var);
+   virtual void gen_stack_alignment(Scope &scope);
+   virtual void gen_stack_unalignment(Scope &scope);
+   virtual void gen_stack_pop_params(std::vector<Variable> &plist);
+   virtual int gen_stack_unwind(Scope &scope);
 
    virtual void gen_rodata();
 
