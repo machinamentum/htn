@@ -21,6 +21,13 @@ Function() {
    scope->function = this;
 }
 
+Struct::
+Struct() {
+   scope = new Scope();
+   scope->is_struct = true;
+   scope->_struct = this;
+}
+
 Expression::
 Expression() {
    scope = new Scope();
@@ -100,7 +107,7 @@ std::string ident_str = "HTN (alpha development build) " + STRING(BRANCH_COMMIT)
 
 static void generate_386(Scope &scope, std::ostream &os) {
    os << target->as_text_section() << std::endl;
-   Gen_386 g386 = Gen_386(os);
+   Gen_386 g386 = Gen_386(os, target->target_triple);
    g386.gen_scope(scope);
 
    os << target->as_rodata_section() << std::endl;
@@ -119,7 +126,7 @@ static void generate_arm(Scope &scope, std::ostream &os) {
       "\t.eabi_attribute 34, 0\n"
       "\t.eabi_attribute 18, 4" << std::endl;
    os << "\t" << target->as_text_section() << std::endl;
-   Gen_ARM gARM = Gen_ARM(os);
+   Gen_ARM gARM = Gen_ARM(os, target->target_triple);
    gARM.gen_scope(scope);
 
    os << target->as_rodata_section() << std::endl;

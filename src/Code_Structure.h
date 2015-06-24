@@ -6,6 +6,8 @@
 #include <vector>
 #include <cstdint>
 
+struct Struct;
+
 struct Variable {
    enum VType {
       DQString,
@@ -18,11 +20,13 @@ struct Variable {
       FLOAT_32BIT,
       POINTER,
       DEREFERENCED_POINTER,
+      STRUCT,
       UNKNOWN
    };
-   
+
    std::string name;
    std::string dqstring;
+   Struct *pstruct = nullptr;
    VType type;
    VType ptype; //used when type is a pointer
    intptr_t pvalue;
@@ -52,7 +56,7 @@ struct Conditional {
       GREATER_EQUAL,
       LESS_EQUAL
    };
-   
+
    Variable left;
    CType condition;
    Variable right;
@@ -67,7 +71,7 @@ struct Instruction {
       INCREMENT,
       BIT_OR
    };
-   
+
    IType type;
    std::string func_call_name;
    std::vector<Variable> call_target_params;
@@ -77,32 +81,39 @@ struct Instruction {
    Conditional condition;
 };
 
-
+struct Struct {
+   std::string name;
+   Scope *scope = nullptr;
+   Struct();
+   //NOTE function members can just be added to the parent scope with mangled name
+};
 
 struct Expression {
    std::vector<Instruction> instructions;
-   
+
    /**
-    * holds the variable data of the destination variable or 
+    * holds the variable data of the destination variable or
     * (in the case of a return) the data of a temporary, or const,
     * that the expression will evaluate to.
     */
    Variable return_value;
    Scope *scope = nullptr;
-   
+
    Expression();
 };
 
 struct Scope {
-   
+
    std::vector<Function> functions;
    std::vector<Expression> expressions;
    std::vector<Variable> variables;
-   //std::vector<Scope *> children;
+   std::vector<Struct> structs;
    Scope *parent = nullptr;
    bool is_function = false;
    Function *function;
-   
+   bool is_struct = false;
+   Struct *_struct;
+
    Scope(Scope *p = nullptr) {
       parent = p;
    }
@@ -113,26 +124,36 @@ struct Scope {
             return true;
          }
       }
-      
+
       for (auto &f : variables) {
          if (f.name.compare(name) == 0) {
             return true;
          }
       }
-      
+
       return (parent ? parent->contains_symbol(name) : false);
    }
-   
+
+   Struct *getStructByName(const std::string name) {
+      for (auto &s : structs) {
+         if (s.name.compare(name) == 0) {
+            return &s;
+         }
+      }
+
+      return (parent ? parent->getStructByName(name) : nullptr);
+   }
+
    Function *getFuncByName(const std::string name) {
       for (auto &f : functions) {
          if (f.name.compare(name) == 0) {
             return &f;
          }
       }
-      
+
       return (parent ? parent->getFuncByName(name) : nullptr);
    }
-   
+
    Variable *getVarByName(const std::string name) {
       for (auto &f : variables) {
          if (f.name.compare(name) == 0) {
@@ -146,7 +167,7 @@ struct Scope {
             }
          }
       }
-      
+
       if (is_function) {
          for (auto &f : function->parameters) {
             if (f.name.compare(name) == 0) {
@@ -154,7 +175,7 @@ struct Scope {
             }
          }
       }
-      
+
       return (parent ? parent->getVarByName(name) : nullptr);
    }
 

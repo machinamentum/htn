@@ -64,7 +64,7 @@ struct StackMan_ARM : public StackMan {
 
 struct Gen_ARM : public Code_Gen {
 
-   Gen_ARM(std::ostream &ost) : Code_Gen(ost) {
+   Gen_ARM(std::ostream &ost, std::string tri) : Code_Gen(ost, tri) {
       stack_man = new StackMan_ARM();
       stack_man->code_gen = this;
    }

@@ -96,6 +96,12 @@ gen_expression(std::string scope_name, Expression &expr) {
                //TODO(josh) implement name mangle + getFuncByNameAndParams
                Function *cfunc = expr.scope->getFuncByName(instr.func_call_name);
                if (!cfunc) {
+                  for (auto &str : expr.scope->parent->structs) {
+                     cfunc = str.scope->getFuncByName(instr.func_call_name);
+                     if (cfunc) break;
+                  }
+               }
+               if (!cfunc) {
                   //this should never happen unless the parser has a bug
                   printf("Undefined reference to %s\n", instr.func_call_name.c_str());
                } else {
@@ -136,8 +142,12 @@ gen_expression(std::string scope_name, Expression &expr) {
 
 void Code_Gen::
 gen_scope_functions(Scope &scope) {
-    for (auto &func : scope.functions) {
+   for (auto &func : scope.functions) {
       gen_function(func);
+   }
+
+   for (auto &str : scope.structs) {
+      gen_scope_functions(*str.scope);
    }
 }
 
@@ -152,6 +162,7 @@ gen_scope_expressions(std::string scope_name, Scope &scope) {
 void Code_Gen::
 gen_function_attributes(Function &func) {
    os << ".globl " << func.name << std::endl;
+   os << "" << func.name << ":" << std::endl;
 }
 
 void Code_Gen::
@@ -162,7 +173,6 @@ gen_function(Function &func) {
 
       if (!func.should_inline && !func.is_not_definition) {
          gen_function_attributes(func);
-         os << "" << func.name << ":" << std::endl;
          if (!func.plain_instructions) {
             emit_function_header();
          }

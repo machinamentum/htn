@@ -65,7 +65,18 @@ int Gen_386::gen_stack_unwind(Scope &scope) {
    return (scope.parent ? gen_stack_unwind(*scope.parent) + stack_adj : stack_adj);
 }
 
-std::string  Gen_386::gen_var(Variable var) {
+void Gen_386::
+gen_function_attributes(Function &func) {
+   if (triple.find("darwin") != std::string::npos) {
+      os << ".globl " << "_" << func.name << std::endl;
+      os << "_" << func.name << ":" << std::endl;
+   } else {
+      os << ".globl " << func.name << std::endl;
+      os << func.name << ":" << std::endl;
+   }
+}
+
+std::string Gen_386::gen_var(Variable var) {
 
    if (var.name.compare(REGISTER_RETURN) == 0) {
       return "%eax";
@@ -141,11 +152,23 @@ void Gen_386::emit_or(Variable src, Variable dst) {
 }
 
 void Gen_386::emit_call(std::string label) {
-   os << '\t' << "call " << label << std::endl;
+   os << '\t' << "call ";
+   if (triple.find("darwin") != std::string::npos &&
+      label.compare(0, 6, "Lscope") != 0 &&
+      label.compare(0, 3, "L0$") != 0) {
+      os << "_";
+   }
+   os << label << std::endl;
 }
 
 void Gen_386::emit_jump(std::string label) {
-   os << '\t' << "jmp " << label << std::endl;
+   os << '\t' << "jmp ";
+   if (triple.find("darwin") != std::string::npos &&
+      label.compare(0, 6, "Lscope") != 0 &&
+      label.compare(0, 3, "L0$") != 0) {
+      os << "_";
+   }
+   os << label << std::endl;
 }
 
 void Gen_386::emit_cond_jump(std::string label, Conditional::CType condition) {

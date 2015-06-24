@@ -68,7 +68,7 @@ struct StackMan_i386 : public StackMan {
 
 struct Gen_386 : public Code_Gen {
 
-   Gen_386(std::ostream &ost) : Code_Gen(ost) {
+   Gen_386(std::ostream &ost, std::string tri) : Code_Gen(ost, tri) {
       stack_man = new StackMan_i386();
       stack_man->code_gen = this;
    }
@@ -78,6 +78,7 @@ struct Gen_386 : public Code_Gen {
    virtual void gen_stack_unalignment(Scope &scope);
    virtual void gen_stack_pop_params(std::vector<Variable> &plist);
    virtual int gen_stack_unwind(Scope &scope);
+   virtual void gen_function_attributes(Function &func);
 
    virtual void gen_rodata();
 

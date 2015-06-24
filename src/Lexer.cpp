@@ -25,10 +25,10 @@ Token Lexer::next_token() {
    if (tok.new_parse_loc) {
       parse_loc = tok.new_parse_loc;
    }
-   if (tok.type != Token::EOF) {
-      print_token(tok);
-      printf("\n");
-   }
+   // if (tok.type != Token::EOF) {
+   //    print_token(tok);
+   //    printf("\n");
+   // }
    return tok;
 }
 

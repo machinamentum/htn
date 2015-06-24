@@ -58,8 +58,9 @@ struct  Code_Gen {
    unsigned int scope_num = 0;
    int pb_num = 0;
    std::ostream &os;
+   std::string triple;
 
-   Code_Gen(std::ostream &ost) : os(ost) {
+   Code_Gen(std::ostream &ost, std::string tri) : os(ost), triple(tri) {
 
    }
 

@@ -168,16 +168,11 @@ void Parser::parse_preincrement(Scope &scope) {
 void Parser::parse_return(Scope &scope, Token &tok) {
    // tok = lex.next_token();
 
-   printf("START_RETURN\n\n");
-
    Expression expr = parse_expression("return", scope, tok, false);
-
    scope.expressions.push_back(expr);
-   printf("\n\nEND_RETURN\n");
 }
 
 void Parser::parse_scope(std::string name_str, Scope &scope, long delim_token) {
-   printf("START_SCOPE\n\n");
    bool deref = false;
    Token tok = lex.next_token();
    while (tok.type != Token::EOF) {
@@ -231,6 +226,8 @@ void Parser::parse_scope(std::string name_str, Scope &scope, long delim_token) {
             parse_while_loop(scope);
          } else if (name.compare("return") == 0) {
             parse_return(scope, tok);
+         } else if (name.compare("struct") == 0) {
+            parse_struct(scope);
          } else if (!scope.contains_symbol(name)) {
             tok = lex.next_token();
             if(tok.type == ':') {
@@ -240,12 +237,16 @@ void Parser::parse_scope(std::string name_str, Scope &scope, long delim_token) {
                   parse_declaration(name, scope);
                }
             } else {
-               compiler_error(std::string("use of undeclared identifier '") + name + "'", tok);
+               compiler_error(std::string("240:use of undeclared identifier '") + name + "'", tok);
             }
          } else {
             tok = lex.next_token();
             if(tok.type == ':') {
                compiler_error("identifier already declared.", tok);
+            } else if (tok.type == '.') {
+               printf("LOL WAT\n");
+               scope.expressions.push_back(parse_expression(name, scope, tok, deref));
+               deref = false;
             } else {
                //printf("parsing expression\n");
                scope.expressions.push_back(parse_expression(name, scope, tok, deref));
@@ -259,8 +260,32 @@ void Parser::parse_scope(std::string name_str, Scope &scope, long delim_token) {
 
       tok = lex.next_token();
    }
+}
 
-   printf("\n\nEND_SCOPE\n");
+Struct Parser::parse_struct(Scope &scope) {
+   Token tok = lex.next_token();
+   if (tok.type != Token::ID) {
+      compiler_error(std::string("expected identifier before token '") + tok.pretty_string() + "'", tok);
+   }
+
+   Struct new_struct;
+   new_struct.scope->parent = &scope;
+   new_struct.name = std::string(tok.string);
+
+   tok = lex.next_token();
+   if (tok.type != ':') {
+      compiler_error(std::string("expected token ':' before token '") + tok.pretty_string() + "'", tok);
+   }
+   tok = lex.next_token();
+   if (tok.type != '{') {
+      compiler_error(std::string("expected token '{' before token '") + tok.pretty_string() + "'", tok);
+   }
+   parse_scope(new_struct.name, *new_struct.scope, '}');
+   tok = lex.next_token();
+   if (tok.type != ';') {
+      compiler_error(std::string("expected token ';' before token '") + tok.pretty_string() + "'", tok);
+   }
+   scope.structs.push_back(new_struct);
 }
 
 static Variable::VType get_vtype(std::string t) {
@@ -309,6 +334,7 @@ Variable Parser::parse_variable(std::string name, Scope &scope, Token &tok, char
          var.type = Variable::POINTER;
       } else if (tok.type == Token::ID) {
          std::string vtype = tok.string;
+         var.pstruct = scope.getStructByName(tok.string);
          if (vtype.compare("const") == 0) {
             if (is_pointer) {
                var.is_ptype_const = true;
@@ -316,10 +342,11 @@ Variable Parser::parse_variable(std::string name, Scope &scope, Token &tok, char
                var.is_type_const = true;
             }
          } else if (is_pointer) {
-            var.ptype = get_vtype(vtype);
+            var.ptype = (var.pstruct ? Variable::STRUCT : get_vtype(vtype));
          } else {
-            var.type = get_vtype(vtype);
+            var.type = (var.pstruct ? Variable::STRUCT : get_vtype(vtype));;
          }
+
       } else if (tok.type == '=') {
          if (var.is_type_const) {
             var.pvalue = parse_const_assign(var, scope, tok).pvalue;
@@ -527,9 +554,18 @@ void Parser::parse_function(std::string name, Scope &scope, Token &tok, bool sho
    func.should_inline = should_inline;
    func.plain_instructions = is_plain;
    func.name = name;
+   if (scope.is_struct) {
+      func.name = scope._struct->name + "_" + name;
+   }
    func.scope->parent = &scope;
    if (tok.type != ')') {
       func.parameters = parse_parameter_list(*func.scope, tok);
+      if (scope.is_struct) {
+         Variable _thisp;
+         _thisp.type = Variable::STRUCT;
+         _thisp.pstruct = scope._struct;
+         func.parameters.insert(func.parameters.begin(), _thisp);
+      }
    }
 
    tok = lex.next_token();
@@ -568,8 +604,25 @@ Expression Parser::parse_expression(std::string name, Scope &scope, Token &tok, 
    Expression expr;
    expr.scope->parent = &scope;
 
-   if (tok.type == '(') {
-      Function *tfunc = scope.getFuncByName(name);
+   if (tok.type == '.' || tok.type == '(') {
+      Variable *var = nullptr;
+      if (tok.type == '.') {
+         printf("LOL WAT2\n");
+         var = scope.getVarByName(name);
+         if (var->type == Variable::STRUCT) {
+            printf("LOL WAT3\n");
+            name = var->pstruct->name + "_" + lex.next_token().string;
+            lex.next_token();//should be ')'
+         }
+      }
+      printf("call func: %s\n", name.c_str());
+      Function *tfunc = nullptr;
+      if (!var) {
+         tfunc = scope.getFuncByName(name);
+      } else {
+         printf("wat4\n");
+         tfunc = var->pstruct->scope->getFuncByName(name);
+      }
       if (tfunc) {
          if (tfunc->should_inline) {
             parse_parameter_list(scope, tok); //TODO(josh)
@@ -585,7 +638,9 @@ Expression Parser::parse_expression(std::string name, Scope &scope, Token &tok, 
             instr.type = Instruction::FUNC_CALL;
             instr.func_call_name = name;
             instr.call_target_params = parse_parameter_list(scope, tok);
-
+            if (var) { //struct func call
+               instr.call_target_params.insert(instr.call_target_params.begin(), *var);
+            }
             tok = lex.next_token();
             if (tok.type != ';') {
                compiler_error(std::string("expected token ';' before token '") + tok.pretty_string() + "'", tok);

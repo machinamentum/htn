@@ -1,0 +1,24 @@
+
+printf : (fmt : *char) -> void;
+_exit : (val : int) -> void;
+
+main : () -> int {
+
+   struct MyStruct : {
+      test : int;
+      test2 : *char;
+
+      test_func : (fmt : *char) -> void {
+         printf(fmt);
+      }
+   };
+   printf("Hmm...\n");
+   mStruct : MyStruct;
+   mStruct.test_func("Hello World!\n");
+   return 0;
+}
+
+start : () -> void {
+   ret : int = main();
+   _exit(ret);
+}
