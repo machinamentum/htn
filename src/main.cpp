@@ -14,25 +14,6 @@
 #include "Parser.h"
 #include "common.h"
 
-Function::
-Function() {
-   scope = new Scope();
-   scope->is_function = true;
-   scope->function = this;
-}
-
-Struct::
-Struct() {
-   scope = new Scope();
-   scope->is_struct = true;
-   scope->_struct = this;
-}
-
-Expression::
-Expression() {
-   scope = new Scope();
-}
-
 extern std::stack<std::string> source_file_name;
 extern int error_count;
 std::vector<std::string> includes;

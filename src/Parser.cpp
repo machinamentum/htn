@@ -244,7 +244,6 @@ void Parser::parse_scope(std::string name_str, Scope &scope, long delim_token) {
             if(tok.type == ':') {
                compiler_error("identifier already declared.", tok);
             } else if (tok.type == '.') {
-               printf("LOL WAT\n");
                scope.expressions.push_back(parse_expression(name, scope, tok, deref));
                deref = false;
             } else {
@@ -416,7 +415,20 @@ std::vector<Instruction> Parser::parse_rvalue(Variable dst, Scope &scope, Token 
             tok = lex.next_token();
             if (tok.type == '(') {
                Function *func = scope.getFuncByName(name);
-               if (func) {
+               if (name.compare("sizeof") == 0) {
+                  std::vector<Variable> vars = parse_parameter_list(scope, tok); //should only have one
+                  if (vars.size()) {
+                     Variable size;
+                     size.type = Variable::INT_32BIT;
+                     size.is_type_const = true;
+                     size.pvalue = vars[0].get_sizeof();
+                     Instruction in;
+                     in.type = itype;
+                     in.lvalue_data = dst;
+                     in.rvalue_data = size;
+                     instructions.push_back(in);
+                  }
+               } else if (func) {
                   Instruction in;
                   in.type = Instruction::FUNC_CALL;
                   in.func_call_name = name;
@@ -607,10 +619,8 @@ Expression Parser::parse_expression(std::string name, Scope &scope, Token &tok, 
    if (tok.type == '.' || tok.type == '(') {
       Variable *var = nullptr;
       if (tok.type == '.') {
-         printf("LOL WAT2\n");
          var = scope.getVarByName(name);
          if (var->type == Variable::STRUCT) {
-            printf("LOL WAT3\n");
             name = var->pstruct->name + "_" + lex.next_token().string;
             lex.next_token();//should be ')'
          }
@@ -620,7 +630,6 @@ Expression Parser::parse_expression(std::string name, Scope &scope, Token &tok, 
       if (!var) {
          tfunc = scope.getFuncByName(name);
       } else {
-         printf("wat4\n");
          tfunc = var->pstruct->scope->getFuncByName(name);
       }
       if (tfunc) {

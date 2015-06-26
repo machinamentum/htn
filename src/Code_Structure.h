@@ -19,7 +19,7 @@ struct Variable {
       INT_64BIT,
       FLOAT_32BIT,
       POINTER,
-      DEREFERENCED_POINTER,
+      DEREFERENCED_POINTER,//this is hacky and shouldnt be a type :P
       STRUCT,
       UNKNOWN
    };
@@ -33,6 +33,8 @@ struct Variable {
    float fvalue;
    bool is_type_const = false;
    bool is_ptype_const = false;
+
+   int get_sizeof();
 };
 
 struct Scope;
@@ -114,74 +116,13 @@ struct Scope {
    bool is_struct = false;
    Struct *_struct;
 
-   Scope(Scope *p = nullptr) {
-      parent = p;
-   }
+   Scope(Scope *p = nullptr);
 
-   bool contains_symbol(const std::string name) {
-      for (auto& f : functions) {
-         if (f.name.compare(name) == 0) {
-            return true;
-         }
-      }
-
-      for (auto &f : variables) {
-         if (f.name.compare(name) == 0) {
-            return true;
-         }
-      }
-
-      return (parent ? parent->contains_symbol(name) : false);
-   }
-
-   Struct *getStructByName(const std::string name) {
-      for (auto &s : structs) {
-         if (s.name.compare(name) == 0) {
-            return &s;
-         }
-      }
-
-      return (parent ? parent->getStructByName(name) : nullptr);
-   }
-
-   Function *getFuncByName(const std::string name) {
-      for (auto &f : functions) {
-         if (f.name.compare(name) == 0) {
-            return &f;
-         }
-      }
-
-      return (parent ? parent->getFuncByName(name) : nullptr);
-   }
-
-   Variable *getVarByName(const std::string name) {
-      for (auto &f : variables) {
-         if (f.name.compare(name) == 0) {
-            return &f;
-         }
-      }
-      for (auto &func : functions) {
-         for (auto &f : func.parameters) {
-            if (f.name.compare(name) == 0) {
-               return &f;
-            }
-         }
-      }
-
-      if (is_function) {
-         for (auto &f : function->parameters) {
-            if (f.name.compare(name) == 0) {
-               return &f;
-            }
-         }
-      }
-
-      return (parent ? parent->getVarByName(name) : nullptr);
-   }
-
-   bool empty() {
-      return !functions.size() && !expressions.size();
-   }
+   bool contains_symbol(const std::string name);
+   Struct *getStructByName(const std::string name);
+   Function *getFuncByName(const std::string name);
+   Variable *getVarByName(const std::string name);
+   bool empty();
 };
 
 

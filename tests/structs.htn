@@ -6,7 +6,7 @@ main : () -> int {
 
    struct MyStruct : {
       test : int;
-      test2 : *char;
+      test2 : int;
 
       test_func : (fmt : *char) -> void {
          printf(fmt);
@@ -14,6 +14,8 @@ main : () -> int {
    };
    printf("Hmm...\n");
    mStruct : MyStruct;
+   mtest : int = sizeof(mStruct);
+   printf("mStruct size:%d\n", mtest);
    mStruct.test_func("Hello World!\n");
    return 0;
 }

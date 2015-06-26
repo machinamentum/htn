@@ -45,6 +45,17 @@ struct Target {
 
       return UNKNOWN;
    }
+
+   int get_pointer_size() {
+      TARGET_CPU cpu = get_target_cpu();
+      switch (cpu) {
+         case X86:
+         case ARM:
+            return 4;
+         default:
+            return -1;
+      }
+   }
 };
 
 #include "Target_GNU.h"
